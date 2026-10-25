@@ -1,0 +1,98 @@
+# orbita: /etc/orbita/config.yaml
+# Проверка: orbita -c /etc/orbita/config.yaml --check
+
+# Колонки с pulsar (или другие ESPHome-спутники: linux-voice-assistant...).
+satellites:
+  - name: kitchen                 # имя в журнале и в топиках MQTT
+    host: 192.168.1.50            # IP колонки
+    port: 6053
+    # Ключ шифрования API колонки: `adb shell /data/pulsar/ctl.sh api-key` (показать) или
+    # `ctl.sh api-key <base64>` (задать). Без HA ключ никто не запишет — задайте его сами.
+    noise_psk: "REPLACE_WITH_BASE64_KEY="
+  # - name: bedroom
+  #   host: 192.168.1.51
+  #   noise_psk: "..."
+  #   voice: ru_RU-irina-medium   # свой голос для этой колонки
+
+# Часовой пояс для часов колонки (IANA); пусто — пояс этого сервера.
+timezone: Europe/Moscow
+
+# OpenAI-совместимый API по умолчанию: vLLM, llama.cpp server, LM Studio, Ollama (/v1),
+# LocalAI, Speaches, OpenRouter, OpenAI... Ключ лучше задать в /etc/orbita/env (OPENAI_API_KEY).
+openai:
+  base_url: http://192.168.1.20:8000/v1
+  api_key: ""
+  timeout: 60
+
+# Речь -> текст: отдельный сервис (wyoming-faster-whisper или OpenAI-совместимый).
+stt:
+  engine: wyoming                 # wyoming или openai (/audio/transcriptions)
+  host: 192.168.1.30              # wyoming: адрес сервиса
+  port: 10300
+  language: ru
+  model: whisper-1                # openai: имя модели на сервере
+  # openai:                       # openai: свой API вместо секции openai выше
+  #   base_url: http://192.168.1.21:8000/v1
+
+# Текст -> речь: отдельный сервис (wyoming-piper или OpenAI-совместимый). Колонка проигрывает
+# готовый файл по ссылке.
+tts:
+  engine: wyoming                 # wyoming или openai (/audio/speech)
+  host: 192.168.1.31              # wyoming: адрес сервиса
+  port: 10200
+  voice: ru_RU-irina-medium       # wyoming-piper: голос; openai: voice
+  model: tts-1                    # openai
+  response_format: wav            # openai: wav надёжнее всего для GStreamer колонки
+
+# Конец фразы определяет сервер (как HA): колонка шлёт звук, пока не услышит STT_VAD_END.
+vad:
+  engine: auto                    # auto | micro (pymicro-vad) | energy
+  threshold: 0.5
+  speech_seconds: 0.3
+  silence_seconds: 0.8            # столько тишины после речи — конец команды
+  no_speech_seconds: 6
+  timeout_seconds: 15
+
+# Отсюда колонка скачивает ответы.
+http:
+  port: 10800
+  base_url: ""                    # пусто — адрес этого сервера в сети колонки
+
+# MQTT (необязательно): Mosquitto для Node-RED / Zigbee2MQTT. Пустой host — выключено.
+mqtt:
+  host: ""
+  port: 1883
+  prefix: orbita
+
+# Кто отвечает: по порядку, первый ответивший побеждает.
+intents:
+  - type: timers                  # «поставь таймер на 5 минут», «отмени таймер», «сколько осталось»
+
+  - type: rules
+    rules:
+      - match: "(который|сколько) (час|времени)"
+        reply: "Сейчас {time}."
+      - match: "какое сегодня число|какой сегодня день"
+        reply: "Сегодня {weekday}, {date}."
+      # С MQTT (секция mqtt с host):
+      # - match: "(?P<state>включи|выключи) свет на кухне"
+      #   reply: "Готово."
+      #   mqtt:
+      #     topic: zigbee2mqtt/kitchen_light/set
+      #     payload: '{{"state": "{state}"}}'   # «включи»/«выключи» — переведите в Node-RED
+      #                                         # или заведите два правила с ON / OFF
+
+  - type: openai                  # всё остальное — LLM
+    model: qwen2.5-7b-instruct    # имя модели на вашем сервере
+    # system: "Ты голосовой ассистент..."   # свой системный промпт
+    temperature: 0.4
+    max_tokens: 200
+    max_history: 10               # пар реплик в контексте диалога
+    continue_on_question: true    # ответ с «?» — колонка слушает дальше без «Алиса»
+
+  # - type: mqtt                  # спросить Node-RED: orbita/<колонка>/intent -> .../intent/reply
+  #   timeout: 5
+
+fallback_reply: "Извините, я не поняла."
+error_reply: "Что-то пошло не так."
+conversation_ttl: 300
