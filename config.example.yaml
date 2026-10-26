@@ -36,7 +36,7 @@ stt:
 # Текст -> речь: OpenAI-совместимый /audio/speech (servers/piper_openai.py, Speaches,
 # LocalAI, OpenAI...). Колонка проигрывает готовый файл по ссылке.
 tts:
-  voice: ru_RU-terra5871-medium     # голоса Piper-ru: см. README
+  voice: ru_RU-fr6800-medium     # голоса Piper-ru: см. README
   model: tts-1
   response_format: wav            # wav надёжнее всего для GStreamer колонки
   openai:

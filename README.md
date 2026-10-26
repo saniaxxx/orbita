@@ -101,7 +101,7 @@ stt:
   language: ru
   openai: {base_url: http://192.168.1.21:8001/v1}     # servers/gigaam_openai.py
 tts:
-  voice: ru_RU-terra5871-medium
+  voice: ru_RU-fr6800-medium
   openai: {base_url: http://192.168.1.22:8003/v1}     # wyoming_openai.py + русский Piper
 
 intents:

@@ -9,7 +9,7 @@
 |---|---|---|
 | LLM: llama.cpp, `ornith-1.5-9b` Q4_K_M, контекст 32 768, KV q8, 4 слота | pve3, CT 100 | RTX 5060 8 ГБ, Pentium Gold G5420 (без AVX2) |
 | STT: `servers/gigaam_openai.py`, GigaAM `v3_e2e_rnnt` | pve3, CT 100 | та же видеокарта |
-| TTS: `piper-ru` (mitrokun) + `servers/wyoming_openai.py`, голос `ru_RU-terra5871-medium` | pve3, CT 100 | та же видеокарта |
+| TTS: `piper-ru` (mitrokun) + `servers/wyoming_openai.py`, голос `ru_RU-terra5871-medium` (потом заменён на `fr6800`: скорость у голосов piper-ru одинаковая) | pve3, CT 100 | та же видеокарта |
 | orbita | pve3, CT 101 | 1 ядро |
 | Колонка: linux-voice-assistant, слово «Okay Nabu» | pve-test (Mac mini 6,1), CT 103 | виртуальный микрофон PulseAudio |
 
