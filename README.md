@@ -230,7 +230,8 @@ servers/         OpenAI-совместимые серверы: gigaam_openai.py 
                  wyoming_openai.py (мост к Wyoming-синтезатору)
 systemd/         orbita.service, gigaam-openai.service, piper-openai.service, piper-ru.service,
                  wyoming-openai.service
-scripts/         install.sh; make_utterance.py и latency.py — замер задержки голосом
+scripts/         install.sh; make_utterance.py и latency.py — замер задержки голосом;
+                 llm_eval.py — проверка LLM на голосовых вопросах
 docs/            spec.md (спецификация), measurements.md (замеры)
 ```
 
