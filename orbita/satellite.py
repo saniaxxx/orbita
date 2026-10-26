@@ -213,15 +213,21 @@ class Satellite:
     async def _pipeline_inner(self, cid: str, audio: asyncio.Queue[bytes | None]) -> None:
         s = self._s
         lang = self.cfg.language or s.config.stt.language or None
+        self._speech_end: float | None = None
         answer: StreamingAnswer | None = None
         stream_url = ""
         if self._streaming():
             stream, stream_url = s.store.open_stream(self.cfg.host)
+
+            def first_audio() -> None:
+                self._log_first_audio()
+                self._send(E.VOICE_ASSISTANT_INTENT_PROGRESS, {"tts_start_streaming": "1"})
+
             answer = StreamingAnswer(
                 s.tts,
                 self.cfg.voice,
                 stream,
-                lambda: self._send(E.VOICE_ASSISTANT_INTENT_PROGRESS, {"tts_start_streaming": "1"}),
+                first_audio,
                 s.config.tts.min_phrase_chars,
                 self.name,
             )
@@ -250,7 +256,10 @@ class Satellite:
             return self._fail("stt-stream-failed", why)
         if not text:
             return self._fail("stt-no-text-recognized", why or "No text recognized")
-        _LOG.info("%s: heard %r (%.1f s)", self.name, text, time.monotonic() - t0)
+        ended = ""
+        if self._speech_end is not None:
+            ended = f", {self._since_speech_end():.2f} s after it ended"
+        _LOG.info("%s: heard %r (%.1f s%s)", self.name, text, time.monotonic() - t0, ended)
         self._send(E.VOICE_ASSISTANT_STT_END, {"text": text})
         await s.publish_json(self.name, "transcript", {"text": text, "conversation_id": cid})
 
@@ -306,9 +315,24 @@ class Satellite:
             url = await self.speak_url(reply.text)
         except Exception as e:  # noqa: BLE001
             return self._fail("tts-failed", str(e))
+        self._log_first_audio()
         self._send(E.VOICE_ASSISTANT_TTS_END, {"url": url})
         self._send(E.VOICE_ASSISTANT_RUN_END)
         _LOG.info("%s: run done in %.1f s", self.name, time.monotonic() - t0)
+
+    def _since_speech_end(self) -> float:
+        assert self._speech_end is not None
+        return time.monotonic() - self._speech_end
+
+    def _log_first_audio(self) -> None:
+        """The answer's first audio is ready for the satellite: what the user waits for, minus
+        the audio's way to us and the satellite's player start."""
+        if self._speech_end is not None:
+            _LOG.info(
+                "%s: answer audio ready %.2f s after the speech ended",
+                self.name,
+                self._since_speech_end(),
+            )
 
     def _streaming(self) -> bool:
         if self.cfg.streaming is not None:
@@ -347,6 +371,9 @@ class Satellite:
                         return "", "No speech detected"
                     else:
                         self._send(E.VOICE_ASSISTANT_STT_VAD_END)
+                        # The speech ended silence_seconds of audio ago: latency is counted
+                        # from then.
+                        self._speech_end = time.monotonic() - cfg.silence_seconds
             if not seg.done and not ended_by_device:
                 self._send(E.VOICE_ASSISTANT_STT_VAD_END)
             if not seg.in_speech and not ended_by_device:
