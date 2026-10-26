@@ -169,11 +169,22 @@ class RulesHandler(Handler):
 
 _MARKUP = re.compile(r"[*_`#>]+")
 
+# LLMs now and then write a Russian word with Latin letters in it ("Лuna"): TTS then reads it
+# letter by letter or in English. Latin letters that look like Cyrillic ones become those
+# (c -> с, not к; p -> р, not п), the rest the Cyrillic letter they sound as.
+_LATIN_TO_CYRILLIC = str.maketrans(
+    "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ",
+    "аАбВсСдДеЕфФгГхНиИйЙкКлЛмМнНоОрРкКрРсСтТуУвВвВхХуУзЗ",
+)
+# A word with at least one Cyrillic and one Latin letter; all-Latin words (Wi-Fi) stay.
+_MIXED_WORD = re.compile(r"\b(?=\w*[а-яёА-ЯЁ])(?=\w*[a-zA-Z])\w+\b")
+
 
 def speakable(text: str) -> str:
-    """LLM output -> text for TTS: no markdown, one line."""
+    """LLM output -> text for TTS: no markdown, one line, no Latin letters in Russian words."""
     text = _MARKUP.sub("", text)
     text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
+    text = _MIXED_WORD.sub(lambda m: m.group().translate(_LATIN_TO_CYRILLIC), text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -201,18 +212,24 @@ class OpenAIHandler(Handler):
         self._tz = tz
 
     def _system_message(self, req: Request) -> str:
-        v = time_vars(now_in(self._tz))
+        # The same for every turn of a satellite: llama.cpp, vLLM, Ollama reuse the computed
+        # prompt (system + history) only while its start does not change, so the time goes into
+        # the last message instead.
         return (
-            f"{self._system}\nСейчас {v['weekday']}, {v['date']} {v['year']}, {v['time']}. "
-            f"Колонка: {req.satellite}."
+            f"{self._system}\nВ начале сообщения пользователя в квадратных скобках — текущие "
+            f"дата и время; называй их, только если спросят. Колонка: {req.satellite}."
         )
+
+    def _user_message(self, req: Request) -> str:
+        v = time_vars(now_in(self._tz))
+        return f"[{v['weekday']}, {v['date']} {v['year']}, {v['time']}]\n{req.text}"
 
     async def handle(self, req: Request, conv: Conversation) -> Reply | None:
         history = conv.messages[-2 * self._history :] if self._history > 0 else []
         messages = [
             {"role": "system", "content": self._system_message(req)},
             *history,
-            {"role": "user", "content": req.text},
+            {"role": "user", "content": self._user_message(req)},
         ]
         if req.on_text is None:
             answer = speakable(await self._client.chat(self._model, messages, **self._params))

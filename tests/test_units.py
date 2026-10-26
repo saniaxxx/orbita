@@ -163,6 +163,38 @@ async def test_timers_handler_dialog():
     assert r.handler == "fallback"
 
 
+async def test_llm_prompt_prefix_does_not_change(monkeypatch):
+    """The time is in the last message: system + history stay the same from turn to turn, so
+    the LLM server can reuse what it computed for them."""
+    import datetime as dt
+
+    import orbita.intents as intents
+    from tests.fakes import FakeOpenAI
+
+    oa = FakeOpenAI(answer="Хорошо.")
+    await oa.start()
+    try:
+        cfg = parse(
+            {
+                "satellites": [{"name": "a", "host": "h"}],
+                "openai": {"base_url": oa.base_url},
+                "intents": [{"type": "openai", "model": "m"}],
+            }
+        )
+        brain = build_brain(cfg, None, None)
+        for minute in (10, 11):
+            moment = dt.datetime(2026, 10, 26, 21, minute)
+            monkeypatch.setattr(intents, "now_in", lambda tz, m=moment: m)
+            await brain.answer(Request(f"фраза {minute}", "a", "c1"))
+        first, second = (c["messages"] for c in oa.rec.chats)
+        assert second[: len(first) - 1] == first[:-1]
+        assert first[-1]["content"] == "[понедельник, 26 октября 2026, 21:10]\nфраза 10"
+        assert second[-3]["content"] == "фраза 10"  # history keeps the plain text
+        assert second[-1]["content"].endswith("21:11]\nфраза 11")
+    finally:
+        await oa.stop()
+
+
 # ---------------- rules ----------------
 
 

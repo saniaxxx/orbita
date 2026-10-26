@@ -181,7 +181,8 @@ async def test_voice_run_openai_everything():
         chat = oa.rec.chats[0]
         assert chat["model"] == "qwen" and chat["temperature"] == 0.2
         assert chat["messages"][0]["role"] == "system"
-        assert chat["messages"][-1] == {"role": "user", "content": "привет"}
+        last = chat["messages"][-1]
+        assert last["role"] == "user" and re.fullmatch(r"\[.+, \d+:\d\d\]\nпривет", last["content"])
         assert set(oa.auth) == {"Bearer sk-test"}
         assert oa.rec.synthesized == [("Привет! Чем помочь?", "nova")]
     finally:
