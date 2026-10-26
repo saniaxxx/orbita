@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import io
 import json
 import math
 import struct
+import wave
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -85,9 +88,19 @@ class FakeWyoming:
 class FakeOpenAI:
     """/v1/chat/completions, /v1/audio/transcriptions, /v1/audio/speech."""
 
-    def __init__(self, answer: str = "Привет! Чем помочь?", transcript: str = "привет") -> None:
+    def __init__(
+        self,
+        answer: str = "Привет! Чем помочь?",
+        transcript: str = "привет",
+        sse: bool = True,
+        delta_delay: float = 0.0,
+    ) -> None:
         self.answer = answer
         self.transcript = transcript
+        # stream=true is answered with server-sent events, one delta per word.
+        self.sse = sse
+        self.delta_delay = delta_delay
+        self.sent_done_at: float | None = None
         self.rec = Recorder()
         self.auth: list[str] = []
         self._runner: web.AppRunner | None = None
@@ -112,10 +125,23 @@ class FakeOpenAI:
         if self._runner:
             await self._runner.cleanup()
 
-    async def _chat(self, request: web.Request) -> web.Response:
+    async def _chat(self, request: web.Request) -> web.StreamResponse:
         self.auth.append(request.headers.get("Authorization", ""))
         body = await request.json()
         self.rec.chats.append(body)
+        if body.get("stream") and self.sse:
+            resp = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
+            await resp.prepare(request)
+            words = self.answer.split(" ")
+            for i, w in enumerate(words):
+                delta = w if i == 0 else " " + w
+                event = {"choices": [{"index": 0, "delta": {"content": delta}}]}
+                await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
+                await asyncio.sleep(self.delta_delay)
+            await resp.write(b"data: [DONE]\n\n")
+            self.sent_done_at = asyncio.get_running_loop().time()
+            await resp.write_eof()
+            return resp
         return web.json_response(
             {"choices": [{"index": 0, "message": {"role": "assistant", "content": self.answer}}]}
         )
@@ -132,4 +158,12 @@ class FakeOpenAI:
     async def _speech(self, request: web.Request) -> web.Response:
         body = await request.json()
         self.rec.synthesized.append((body["input"], body.get("voice")))
-        return web.Response(body=b"RIFFfake" + json.dumps(body).encode(), content_type="audio/wav")
+        if body.get("response_format", "wav") != "wav":
+            return web.Response(body=b"ID3fake-" + body["response_format"].encode())
+        wav = io.BytesIO()
+        with wave.open(wav, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(tone(0.1, 24000))
+        return web.Response(body=wav.getvalue(), content_type="audio/wav")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import aiohttp
@@ -44,6 +46,46 @@ class OpenAIClient:
         except (KeyError, IndexError, TypeError):
             raise OpenAIError(f"chat: unexpected response {str(data)[:300]}") from None
         return (content or "").strip()
+
+    async def chat_stream(
+        self, model: str, messages: list[dict[str, Any]], **params: Any
+    ) -> AsyncIterator[str]:
+        """Chat completion with stream=true (server-sent events): yields text deltas."""
+        payload = {"model": model, "messages": messages, "stream": True, **params}
+        # The total timeout bounds the whole answer; sock_read catches a server gone silent.
+        timeout = aiohttp.ClientTimeout(total=self._cfg.timeout, sock_read=self._cfg.timeout)
+        async with aiohttp.ClientSession(timeout=timeout) as s:
+            async with s.post(
+                f"{self._base}/chat/completions", json=payload, headers=self._headers()
+            ) as resp:
+                await self._check(resp, "chat")
+                if "text/event-stream" not in resp.headers.get("Content-Type", ""):
+                    # A server that ignores stream=true answers with one JSON body.
+                    data = await resp.json(content_type=None)
+                    try:
+                        content = data["choices"][0]["message"]["content"]
+                    except (KeyError, IndexError, TypeError):
+                        raise OpenAIError(f"chat: unexpected response {str(data)[:300]}") from None
+                    if content:
+                        yield content
+                    return
+                async for raw in resp.content:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        return
+                    try:
+                        event = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(event, dict) and event.get("error"):
+                        raise OpenAIError(f"chat: {str(event['error'])[:300]}")
+                    for choice in event.get("choices") or []:
+                        delta = (choice.get("delta") or {}).get("content")
+                        if delta:
+                            yield delta
 
     async def transcribe(self, pcm: bytes, model: str, language: str | None) -> str:
         """16 kHz mono 16-bit PCM -> text."""

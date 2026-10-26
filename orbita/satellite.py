@@ -34,6 +34,7 @@ from aioesphomeapi import (
 )
 
 from .intents import Request
+from .streaming import StreamingAnswer
 from .vad import Segmenter, VadEvent
 
 if TYPE_CHECKING:
@@ -212,7 +213,35 @@ class Satellite:
     async def _pipeline_inner(self, cid: str, audio: asyncio.Queue[bytes | None]) -> None:
         s = self._s
         lang = self.cfg.language or s.config.stt.language or None
-        self._send(E.VOICE_ASSISTANT_RUN_START)
+        answer: StreamingAnswer | None = None
+        stream_url = ""
+        if self._streaming():
+            stream, stream_url = s.store.open_stream(self.cfg.host)
+            answer = StreamingAnswer(
+                s.tts,
+                self.cfg.voice,
+                stream,
+                lambda: self._send(E.VOICE_ASSISTANT_INTENT_PROGRESS, {"tts_start_streaming": "1"}),
+                s.config.tts.min_phrase_chars,
+                self.name,
+            )
+        try:
+            await self._converse(cid, audio, lang, answer, stream_url)
+        finally:
+            if answer is not None:
+                await answer.cancel()  # no-op once finished; closes an unused stream
+
+    async def _converse(
+        self,
+        cid: str,
+        audio: asyncio.Queue[bytes | None],
+        lang: str | None,
+        answer: StreamingAnswer | None,
+        stream_url: str,
+    ) -> None:
+        s = self._s
+        # The URL in RUN_START is where the answer will stream from (HA does the same).
+        self._send(E.VOICE_ASSISTANT_RUN_START, {"url": stream_url} if stream_url else None)
         self._send(E.VOICE_ASSISTANT_STT_START)
         t0 = time.monotonic()
 
@@ -226,10 +255,25 @@ class Satellite:
         await s.publish_json(self.name, "transcript", {"text": text, "conversation_id": cid})
 
         self._send(E.VOICE_ASSISTANT_INTENT_START)
+        t1 = time.monotonic()
         reply = await s.brain.answer(
-            Request(text=text, satellite=self.name, conversation_id=cid, language=lang, timers=self)
+            Request(
+                text=text,
+                satellite=self.name,
+                conversation_id=cid,
+                language=lang,
+                timers=self,
+                on_text=answer.on_text if answer is not None else None,
+            )
         )
-        _LOG.info("%s: answer by %s: %r", self.name, reply.handler, reply.text)
+        _LOG.info(
+            "%s: answer by %s in %.1f s%s: %r",
+            self.name,
+            reply.handler,
+            time.monotonic() - t1,
+            " (streamed)" if reply.streamed else "",
+            reply.text,
+        )
         self._send(
             E.VOICE_ASSISTANT_INTENT_END,
             {
@@ -249,6 +293,15 @@ class Satellite:
             return
 
         self._send(E.VOICE_ASSISTANT_TTS_START, {"text": reply.text})
+        if reply.streamed and answer is not None:
+            # Playing (or about to): the same stream; the run ends when it is all spoken.
+            self._send(E.VOICE_ASSISTANT_TTS_END, {"url": stream_url})
+            await answer.finish()
+            if answer.failed and answer.failed == answer.phrases:
+                _LOG.warning("%s: no phrase of the answer could be synthesized", self.name)
+            self._send(E.VOICE_ASSISTANT_RUN_END)
+            _LOG.info("%s: run done in %.1f s", self.name, time.monotonic() - t0)
+            return
         try:
             url = await self.speak_url(reply.text)
         except Exception as e:  # noqa: BLE001
@@ -256,6 +309,11 @@ class Satellite:
         self._send(E.VOICE_ASSISTANT_TTS_END, {"url": url})
         self._send(E.VOICE_ASSISTANT_RUN_END)
         _LOG.info("%s: run done in %.1f s", self.name, time.monotonic() - t0)
+
+    def _streaming(self) -> bool:
+        if self.cfg.streaming is not None:
+            return self.cfg.streaming
+        return self._s.config.tts.streaming
 
     async def _listen(
         self, audio: asyncio.Queue[bytes | None], lang: str | None

@@ -43,6 +43,8 @@ tts:
   voice: ru_RU-irina-medium       # wyoming-piper: голос; openai: voice
   model: tts-1                    # openai
   response_format: wav            # openai: wav надёжнее всего для GStreamer колонки
+  streaming: true                 # ответ LLM звучит по фразам, пока модель пишет
+  min_phrase_chars: 20            # фразы короче склеиваются со следующей
 
 # Конец фразы определяет сервер (как HA): колонка шлёт звук, пока не услышит STT_VAD_END.
 vad:

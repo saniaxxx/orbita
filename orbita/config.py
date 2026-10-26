@@ -21,9 +21,10 @@ class SatelliteConfig:
     host: str
     port: int = 6053
     noise_psk: str | None = None
-    # Overrides of the global stt.language / tts.voice for this satellite.
+    # Overrides of the global stt.language / tts.voice / tts.streaming for this satellite.
     language: str | None = None
     voice: str | None = None
+    streaming: bool | None = None
 
 
 @dataclass
@@ -64,6 +65,12 @@ class TtsConfig:
     # engine "openai": wav (the default, any GStreamer plays it), mp3, flac, opus...
     response_format: str = "wav"
     speed: float | None = None
+    # Speak an LLM answer phrase by phrase while it is written: the satellite gets a WAV stream
+    # in RUN_START and starts playing with the first phrase. false: one file after the whole
+    # answer.
+    streaming: bool = True
+    # A phrase is spoken once it has this many characters (shorter ones join the next).
+    min_phrase_chars: int = 20
     openai: OpenAIConfig | None = None
 
 

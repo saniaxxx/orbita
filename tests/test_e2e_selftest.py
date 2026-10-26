@@ -232,3 +232,83 @@ async def test_noise_encryption(tmp_path):
         await task
         await st.stop()
         await wy.stop()
+
+
+async def test_answer_streams_phrase_by_phrase():
+    """The satellite starts playing (INTENT_PROGRESS tts_start_streaming=1) while the LLM is
+    still writing; the stream from RUN_START carries every phrase."""
+    from orbita.wyoming_io import from_wav
+
+    wy = FakeWyoming("расскажи про погоду")
+    await wy.start()
+    answer = "Сегодня солнечно и тепло. Вечером возможен небольшой дождь. Возьмите зонт."
+    oa = FakeOpenAI(answer=answer, delta_delay=0.02)
+    await oa.start()
+    st = Selftest(free_port())
+    await st.start()
+    cfg = base_cfg(st.port, free_port()) | {
+        "openai": {"base_url": oa.base_url},
+        "stt": {"engine": "wyoming", "port": wy.port},
+        "tts": {"engine": "wyoming", "port": wy.port},
+        "intents": [{"type": "openai", "model": "m"}],
+    }
+    cfg["vad"]["timeout_seconds"] = 0.3  # the selftest's stop request comes ~0.75 s in
+    app, stop, task = await run_app(cfg)
+    try:
+        await st.wait_for(r"HOOK voice_event 2\b", timeout=15)
+        ev = st.events()
+        codes = [e.split()[0] for e in ev]
+        url = re.search(r"url=(\S+)", ev[0]).group(1)
+        assert "/tts/stream/" in url, ev[0]
+        # Playback starts before the answer is complete (INTENT_END).
+        assert "100" in codes and codes.index("100") < codes.index("6"), ev
+        assert "tts_start_streaming=1" in ev[codes.index("100")]
+        assert codes[-4:] == ["6", "7", "8", "2"], ev
+        assert f"url={url}" in ev[codes.index("8")]
+        assert f"text={answer}" in ev[codes.index("7")]
+        assert [t for t, _ in wy.rec.synthesized] == [
+            "Сегодня солнечно и тепло.",
+            "Вечером возможен небольшой дождь.",
+            "Возьмите зонт.",
+        ]
+        async with aiohttp.ClientSession() as s, s.get(url) as r:
+            body = await r.read()
+        pcm = from_wav(body)
+        assert pcm.rate == 22050 and len(pcm.data) == 3 * int(0.2 * 22050) * 2
+        assert oa.rec.chats[0]["stream"] is True
+    finally:
+        stop.set()
+        await task
+        await st.stop()
+        await wy.stop()
+        await oa.stop()
+
+
+async def test_streaming_off_sends_one_file():
+    wy = FakeWyoming("привет")
+    await wy.start()
+    oa = FakeOpenAI(answer="Привет. Как ваши дела сегодня? Всё хорошо?")
+    await oa.start()
+    st = Selftest(free_port())
+    await st.start()
+    cfg = base_cfg(st.port, free_port()) | {
+        "openai": {"base_url": oa.base_url},
+        "stt": {"engine": "wyoming", "port": wy.port},
+        "tts": {"engine": "wyoming", "port": wy.port, "streaming": False},
+        "intents": [{"type": "openai", "model": "m"}],
+    }
+    app, stop, task = await run_app(cfg)
+    try:
+        await st.wait_for(r"HOOK voice_event 2\b", timeout=15)
+        ev = st.events()
+        assert ev[0].split() == ["1"] and not any(e.startswith("100") for e in ev)
+        url = re.search(r"url=(\S+)", next(e for e in ev if e.startswith("8 "))).group(1)
+        assert "/tts/stream/" not in url
+        assert oa.rec.chats[0]["stream"] is False
+        assert len(wy.rec.synthesized) == 1
+    finally:
+        stop.set()
+        await task
+        await st.stop()
+        await wy.stop()
+        await oa.stop()

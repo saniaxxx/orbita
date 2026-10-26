@@ -48,6 +48,9 @@ class Request:
     language: str | None = None
     # The satellite (Satellite.timer_start / timer_cancel / timers), for the timers handler.
     timers: Any = None
+    # Set when the satellite plays answers as they are written: a handler that can stream (the
+    # LLM) passes its text deltas here and marks the reply streamed.
+    on_text: Callable[[str], Awaitable[None]] | None = None
 
 
 @dataclass
@@ -55,6 +58,8 @@ class Reply:
     text: str
     continue_conversation: bool = False
     handler: str = ""
+    # The text already went to Request.on_text.
+    streamed: bool = False
 
 
 @dataclass
@@ -209,11 +214,30 @@ class OpenAIHandler(Handler):
             *history,
             {"role": "user", "content": req.text},
         ]
-        answer = speakable(await self._client.chat(self._model, messages, **self._params))
+        if req.on_text is None:
+            answer = speakable(await self._client.chat(self._model, messages, **self._params))
+            streamed = False
+        else:
+            answer, streamed = await self._stream(messages, req.on_text)
         if not answer:
             return None
         ask = self._continue_on_question and answer.rstrip().endswith("?")
-        return Reply(answer, ask, self.name)
+        return Reply(answer, ask, self.name, streamed)
+
+    async def _stream(
+        self, messages: list[dict[str, str]], on_text: Callable[[str], Awaitable[None]]
+    ) -> tuple[str, bool]:
+        parts: list[str] = []
+        try:
+            async for delta in self._client.chat_stream(self._model, messages, **self._params):
+                parts.append(delta)
+                await on_text(delta)
+        except Exception as e:  # noqa: BLE001
+            if not parts:
+                raise
+            # Part of the answer is already playing: keep it rather than add another answer.
+            _LOG.warning("llm stream broke off after %d chars: %s", len("".join(parts)), e)
+        return speakable("".join(parts)), bool(parts)
 
 
 class MqttHandler(Handler):

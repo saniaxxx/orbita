@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Protocol
 
 from .config import OpenAIConfig, SttConfig, TtsConfig
 from .openai_io import OpenAIClient
-from .wyoming_io import SttSession, synthesize
+from .wyoming_io import Pcm, SttSession, from_wav, synthesize, synthesize_stream
 
 # One transcription without an end-of-audio is cut at this size (60 s of 16 kHz 16-bit).
 MAX_PCM = 60 * 16000 * 2
@@ -68,3 +69,16 @@ class Tts:
             return data, fmt
         wav = await synthesize(self._cfg.host, self._cfg.port, text, voice, self._cfg.speaker)
         return wav, "wav"
+
+    async def stream(self, text: str, voice: str | None = None) -> AsyncIterator[Pcm]:
+        """Text -> PCM as soon as the engine has it (Wyoming: while it synthesizes; OpenAI: the
+        whole phrase, requested as WAV)."""
+        voice = voice or self._cfg.voice
+        if self._api is not None:
+            data = await self._api.speech(text, self._cfg.model, voice, "wav", self._cfg.speed)
+            yield from_wav(data)
+            return
+        async for p in synthesize_stream(
+            self._cfg.host, self._cfg.port, text, voice, self._cfg.speaker
+        ):
+            yield p

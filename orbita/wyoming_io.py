@@ -6,11 +6,14 @@ from __future__ import annotations
 import asyncio
 import io
 import wave
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.client import AsyncTcpClient
 from wyoming.error import Error
+from wyoming.event import Event
 from wyoming.tts import Synthesize, SynthesizeVoice
 
 RATE = 16000
@@ -69,6 +72,57 @@ class SttSession:
             await self._client.disconnect()
 
 
+@dataclass(frozen=True)
+class Pcm:
+    """A piece of synthesized audio."""
+
+    rate: int
+    width: int
+    channels: int
+    data: bytes
+
+
+async def synthesize_stream(
+    host: str,
+    port: int,
+    text: str,
+    voice: str | None = None,
+    speaker: str | None = None,
+    timeout: float = 60.0,
+) -> AsyncIterator[Pcm]:
+    """Text -> audio as the server produces it."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+
+    async def read(client: AsyncTcpClient) -> Event | None:
+        return await asyncio.wait_for(client.read_event(), max(0.0, deadline - loop.time()))
+
+    async with AsyncTcpClient(host, port) as client:
+        v = SynthesizeVoice(name=voice, speaker=speaker) if voice or speaker else None
+        await client.write_event(Synthesize(text=text, voice=v).event())
+        fmt: tuple[int, int, int] | None = None
+        got = False
+        while True:
+            event = await read(client)
+            if event is None:
+                raise WyomingError("tts: connection closed before the end of the audio")
+            if AudioStart.is_type(event.type):
+                s = AudioStart.from_event(event)
+                fmt = (s.rate, s.width, s.channels)
+            elif AudioChunk.is_type(event.type):
+                c = AudioChunk.from_event(event)
+                if fmt is None:
+                    fmt = (c.rate, c.width, c.channels)
+                got = True
+                yield Pcm(*fmt, c.audio)
+            elif AudioStop.is_type(event.type):
+                break
+            elif Error.is_type(event.type):
+                raise WyomingError(f"tts: {Error.from_event(event).text}")
+        if not got:
+            raise WyomingError("tts: no audio")
+
+
 async def synthesize(
     host: str,
     port: int,
@@ -78,34 +132,13 @@ async def synthesize(
     timeout: float = 60.0,
 ) -> bytes:
     """Text -> WAV file bytes."""
-
-    async def run() -> bytes:
-        async with AsyncTcpClient(host, port) as client:
-            v = SynthesizeVoice(name=voice, speaker=speaker) if voice or speaker else None
-            await client.write_event(Synthesize(text=text, voice=v).event())
-            fmt: tuple[int, int, int] | None = None
-            pcm = io.BytesIO()
-            while True:
-                event = await client.read_event()
-                if event is None:
-                    raise WyomingError("tts: connection closed before the end of the audio")
-                if AudioStart.is_type(event.type):
-                    s = AudioStart.from_event(event)
-                    fmt = (s.rate, s.width, s.channels)
-                elif AudioChunk.is_type(event.type):
-                    c = AudioChunk.from_event(event)
-                    if fmt is None:
-                        fmt = (c.rate, c.width, c.channels)
-                    pcm.write(c.audio)
-                elif AudioStop.is_type(event.type):
-                    break
-                elif Error.is_type(event.type):
-                    raise WyomingError(f"tts: {Error.from_event(event).text}")
-            if fmt is None:
-                raise WyomingError("tts: no audio")
-            return to_wav(pcm.getvalue(), *fmt)
-
-    return await asyncio.wait_for(run(), timeout)
+    pcm = io.BytesIO()
+    fmt: tuple[int, int, int] | None = None
+    async for p in synthesize_stream(host, port, text, voice, speaker, timeout):
+        fmt = fmt or (p.rate, p.width, p.channels)
+        pcm.write(p.data)
+    assert fmt is not None
+    return to_wav(pcm.getvalue(), *fmt)
 
 
 def to_wav(pcm: bytes, rate: int, width: int, channels: int) -> bytes:
@@ -116,3 +149,12 @@ def to_wav(pcm: bytes, rate: int, width: int, channels: int) -> bytes:
         w.setframerate(rate)
         w.writeframes(pcm)
     return out.getvalue()
+
+
+def from_wav(data: bytes) -> Pcm:
+    """WAV file bytes -> PCM (raises WyomingError when it is not PCM WAV)."""
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            return Pcm(w.getframerate(), w.getsampwidth(), w.getnchannels(), w.readframes(1 << 30))
+    except (wave.Error, EOFError) as e:
+        raise WyomingError(f"tts: not a PCM WAV file: {e}") from None
