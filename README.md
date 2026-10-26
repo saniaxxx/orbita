@@ -230,10 +230,15 @@ servers/         OpenAI-совместимые серверы: gigaam_openai.py 
                  wyoming_openai.py (мост к Wyoming-синтезатору)
 systemd/         orbita.service, gigaam-openai.service, piper-openai.service, piper-ru.service,
                  wyoming-openai.service
-scripts/         install.sh
+scripts/         install.sh; make_utterance.py и latency.py — замер задержки голосом
+docs/            spec.md (спецификация), measurements.md (замеры)
 ```
 
 ## Разработка
+
+Спецификация — [`docs/spec.md`](docs/spec.md): что orbita должна делать, контракты сервисов,
+требования к задержке, принятые решения. Замеры — [`docs/measurements.md`](docs/measurements.md).
+Изменение поведения начинается с правки спеки.
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
