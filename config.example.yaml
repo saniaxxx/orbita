@@ -12,7 +12,7 @@ satellites:
   # - name: bedroom
   #   host: 192.168.1.51
   #   noise_psk: "..."
-  #   voice: ru_RU-irina-medium   # свой голос для этой колонки
+  #   voice: ru_RU-dict-medium_epoch3874   # свой голос для этой колонки
 
 # Часовой пояс для часов колонки (IANA); пусто — пояс этого сервера.
 timezone: Europe/Moscow
@@ -36,11 +36,11 @@ stt:
 # Текст -> речь: OpenAI-совместимый /audio/speech (servers/piper_openai.py, Speaches,
 # LocalAI, OpenAI...). Колонка проигрывает готовый файл по ссылке.
 tts:
-  voice: ru_RU-irina-medium
+  voice: ru_RU-terra5871-medium     # голоса Piper-ru: см. README
   model: tts-1
   response_format: wav            # wav надёжнее всего для GStreamer колонки
   openai:
-    base_url: http://192.168.1.22:8002/v1
+    base_url: http://192.168.1.22:8003/v1   # servers/wyoming_openai.py + piper-ru
     api_key: ""
   streaming: true                 # ответ LLM звучит по фразам, пока модель пишет
   min_phrase_chars: 20            # фразы короче склеиваются со следующей

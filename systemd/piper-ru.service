@@ -1,0 +1,27 @@
+[Unit]
+Description=Russian Piper (mitrokun/espeak-ng-data: stress, homographs, numbers), Wyoming, GPU
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=tts
+Group=tts
+# /opt/piper-ru: rhasspy/wyoming-piper + mitrokun's wyoming_piper_accent and espeak-ng-data,
+# onnxruntime-gpu; voices trained on that dictionary (rraaww/ru_piper) in /var/lib/piper-ru.
+# Reachable only from this host: orbita talks to wyoming-openai.service.
+WorkingDirectory=/opt/piper-ru
+Environment=HOME=/var/lib/piper-ru
+# cuDNN and CUDA from the venv's nvidia-* wheels (wyoming-piper does not preload them)
+Environment=LD_LIBRARY_PATH=/opt/piper-ru/.venv/lib/python3.13/site-packages/nvidia/cu13/lib:/opt/piper-ru/.venv/lib/python3.13/site-packages/nvidia/cudnn/lib
+ExecStart=/opt/piper-ru/.venv/bin/python -m wyoming_piper --uri tcp://127.0.0.1:10200 --data-dir /var/lib/piper-ru --voice ru_RU-terra5871-medium --max-cached-voices 1 --yo --use-cuda
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/piper-ru
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -50,7 +50,7 @@ sudo scripts/install.sh
 Распознавание и синтез речи — отдельные сервисы с OpenAI-совместимым API
 (`/audio/transcriptions`, `/audio/speech`), их адреса задаются в конфиге (`stt`, `tts`).
 Подойдут Speaches, LocalAI, OpenAI или серверы из [`servers/`](#серверы-распознавания-и-синтеза):
-GigaAM и Piper.
+GigaAM, Piper и мост к любому Wyoming-синтезатору.
 
 Дальше:
 
@@ -101,8 +101,8 @@ stt:
   language: ru
   openai: {base_url: http://192.168.1.21:8001/v1}     # servers/gigaam_openai.py
 tts:
-  voice: ru_RU-irina-medium
-  openai: {base_url: http://192.168.1.22:8002/v1}     # servers/piper_openai.py
+  voice: ru_RU-terra5871-medium
+  openai: {base_url: http://192.168.1.22:8003/v1}     # wyoming_openai.py + русский Piper
 
 intents:
   - type: timers
@@ -130,9 +130,37 @@ unit-файлом в `systemd/`:
 |---|---|---|---|
 | `gigaam_openai.py` — [GigaAM](https://github.com/salute-developers/GigaAM) (русский, с пунктуацией) | `POST /v1/audio/transcriptions` | 8001 | `gigaam-openai.service` |
 | `piper_openai.py` — [Piper](https://github.com/OHF-Voice/piper1-gpl) | `POST /v1/audio/speech` (`wav`, `pcm`) | 8002 | `piper-openai.service` |
+| `wyoming_openai.py` — мост к Wyoming-синтезатору | `POST /v1/audio/speech` (`wav`, `pcm`) | 8003 | `wyoming-openai.service` |
 
-Оба отдают `GET /v1/models` и `GET /health`, ошибки — `{"error": {"message": ...}}`, ключ
-(`--api-key`) — по желанию. Модель загружается при старте, запросы выполняются по очереди.
+Все отдают `GET /v1/models` и `GET /health`, ошибки — `{"error": {"message": ...}}`, ключ
+(`--api-key`) — по желанию. Модель загружается и прогревается при старте, запросы выполняются по
+очереди.
+
+#### Русский Piper (рекомендуется)
+
+Стандартные русские голоса Piper путают ударения и не читают числа. Лучше звучит
+[доработанный wyoming-piper](https://github.com/mitrokun/espeak-ng-data) от mitrokun:
+исправленный словарь espeak-ng, омографы через silero-stress, ёфикатор, нормализация чисел,
+процентов и годов. Голоса для него — в [rraaww/ru_piper](https://huggingface.co/rraaww/ru_piper)
+(обучены на этом словаре, со стандартным звучат неправильно, и наоборот: стандартные irina,
+ruslan, denis, dmitri с новым словарём портятся).
+
+Он существует только как Wyoming-сервер, поэтому orbita ходит к нему через мост
+`wyoming_openai.py`:
+
+```
+orbita → wyoming-openai.service (:8003, OpenAI API) → piper-ru.service (127.0.0.1:10200, Wyoming)
+```
+
+Установка — по микрогайду mitrokun в `/opt/piper-ru`; для видеокарты `onnxruntime` заменяется на
+`onnxruntime-gpu[cuda,cudnn]`, `LD_LIBRARY_PATH` в `systemd/piper-ru.service` указывает на
+библиотеки CUDA из venv. Голоса — в `/var/lib/piper-ru`. Мост отдаёт только голоса из `--voices`
+(первый — по умолчанию): wyoming-piper числит установленным весь свой каталог и скачивает голос
+при первом обращении.
+
+На RTX 5060 фраза синтезируется за 0,2–0,4 с (на Pentium G5420 — около секунды), голос
+занимает 0,4–0,8 ГБ видеопамяти. Держите в памяти один голос (`--max-cached-voices 1`), если
+видеокарта общая с LLM.
 
 ### MQTT
 
@@ -198,8 +226,10 @@ orbita/
   timers.py      таймеры по-русски
   bus.py         MQTT
   http_store.py  HTTP-сервер ответов: файлы и потоки
-servers/         OpenAI-совместимые серверы: gigaam_openai.py (STT), piper_openai.py (TTS)
-systemd/         orbita.service, gigaam-openai.service, piper-openai.service
+servers/         OpenAI-совместимые серверы: gigaam_openai.py (STT), piper_openai.py (TTS),
+                 wyoming_openai.py (мост к Wyoming-синтезатору)
+systemd/         orbita.service, gigaam-openai.service, piper-openai.service, piper-ru.service,
+                 wyoming-openai.service
 scripts/         install.sh
 ```
 

@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenAI-compatible /v1/audio/speech in front of a Wyoming TTS server
+After=network-online.target piper-ru.service
+Wants=network-online.target
+BindsTo=piper-ru.service
+
+[Service]
+Type=exec
+User=tts
+Group=tts
+# Any venv with wyoming and aiohttp; here the Wyoming server's own.
+# --voices: only these reach the server (the first is the default); keep in step with the
+# voices in /var/lib/piper-ru and piper-ru's --max-cached-voices.
+ExecStart=/opt/piper-ru/.venv/bin/python /opt/piper-ru/wyoming_openai.py --wyoming tcp://127.0.0.1:10200 --port 8003 --voices ru_RU-terra5871-medium,ru_RU-dict-medium_epoch3874 --warmup "Проверка связи."
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
