@@ -8,8 +8,8 @@ from typing import Any
 
 import aiohttp
 
+from .audio import CHANNELS, RATE, WIDTH, to_wav
 from .config import OpenAIConfig
-from .wyoming_io import CHANNELS, RATE, WIDTH, to_wav
 
 
 class OpenAIError(RuntimeError):

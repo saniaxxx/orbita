@@ -1,4 +1,4 @@
-"""Fake Wyoming STT/TTS and OpenAI-compatible servers for the tests and scripts/e2e_selftest.py."""
+"""Fake OpenAI-compatible server (chat, transcriptions, speech) for the tests."""
 
 from __future__ import annotations
 
@@ -12,11 +12,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from aiohttp import web
-from wyoming.asr import Transcribe, Transcript
-from wyoming.audio import AudioChunk, AudioStart, AudioStop
-from wyoming.event import Event
-from wyoming.server import AsyncEventHandler, AsyncTcpServer
-from wyoming.tts import Synthesize
 
 
 def tone(seconds: float, rate: int = 22050, hz: float = 440.0, amp: int = 8000) -> bytes:
@@ -28,61 +23,9 @@ def tone(seconds: float, rate: int = 22050, hz: float = 440.0, amp: int = 8000) 
 
 @dataclass
 class Recorder:
-    transcribe_language: list[str | None] = field(default_factory=list)
-    stt_bytes: list[int] = field(default_factory=list)
     synthesized: list[tuple[str, str | None]] = field(default_factory=list)
     chats: list[dict[str, Any]] = field(default_factory=list)
     uploads: list[dict[str, Any]] = field(default_factory=list)
-
-
-class FakeWyoming:
-    """STT: answers `transcript` after AudioStop. TTS: 0.2 s of a 440 Hz tone at 22050 Hz."""
-
-    def __init__(self, transcript: str = "который час") -> None:
-        self.transcript = transcript
-        self.rec = Recorder()
-        self._server: AsyncTcpServer | None = None
-        self.port = 0
-
-    async def start(self) -> None:
-        fake = self
-
-        class Handler(AsyncEventHandler):
-            def __init__(self, *a: Any, **kw: Any) -> None:
-                super().__init__(*a, **kw)
-                self.got = 0
-
-            async def handle_event(self, event: Event) -> bool:
-                if Transcribe.is_type(event.type):
-                    fake.rec.transcribe_language.append(Transcribe.from_event(event).language)
-                elif AudioChunk.is_type(event.type):
-                    self.got += len(AudioChunk.from_event(event).audio)
-                elif AudioStop.is_type(event.type):
-                    fake.rec.stt_bytes.append(self.got)
-                    await self.write_event(Transcript(text=fake.transcript).event())
-                    return False
-                elif Synthesize.is_type(event.type):
-                    s = Synthesize.from_event(event)
-                    fake.rec.synthesized.append((s.text, s.voice.name if s.voice else None))
-                    await self.write_event(AudioStart(rate=22050, width=2, channels=1).event())
-                    pcm = tone(0.2)
-                    for i in range(0, len(pcm), 4096):
-                        await self.write_event(
-                            AudioChunk(
-                                rate=22050, width=2, channels=1, audio=pcm[i : i + 4096]
-                            ).event()
-                        )
-                    await self.write_event(AudioStop().event())
-                    return False
-                return True
-
-        self._server = AsyncTcpServer("127.0.0.1", 0)
-        await self._server.start(Handler)
-        self.port = self._server._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
-
-    async def stop(self) -> None:
-        if self._server:
-            await self._server.stop()
 
 
 class FakeOpenAI:

@@ -1,0 +1,22 @@
+[Unit]
+Description=Piper text to speech, OpenAI-compatible API (/v1/audio/speech)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=piper
+Group=piper
+# venv with piper-tts and aiohttp; voices (<name>.onnx + .onnx.json) in /var/lib/piper
+ExecStart=/opt/piper/bin/python /opt/piper/piper_openai.py --data-dir /var/lib/piper --voice ru_RU-irina-medium --port 8002
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadOnlyPaths=/var/lib/piper
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

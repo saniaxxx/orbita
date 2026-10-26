@@ -43,26 +43,21 @@ class OpenAIConfig:
 
 @dataclass
 class SttConfig:
-    # "wyoming" (wyoming-faster-whisper and others) or "openai" (/audio/transcriptions).
-    engine: str = "wyoming"
-    host: str = "127.0.0.1"
-    port: int = 10300
+    """OpenAI-compatible /audio/transcriptions."""
+
     language: str = "ru"
     model: str = "whisper-1"
-    # engine "openai": its own API; absent: the top-level openai section.
+    # Its own API; absent: the top-level openai section.
     openai: OpenAIConfig | None = None
 
 
 @dataclass
 class TtsConfig:
-    # "wyoming" (wyoming-piper and others) or "openai" (/audio/speech).
-    engine: str = "wyoming"
-    host: str = "127.0.0.1"
-    port: int = 10200
+    """OpenAI-compatible /audio/speech."""
+
     voice: str | None = None
-    speaker: str | None = None
     model: str = "tts-1"
-    # engine "openai": wav (the default, any GStreamer plays it), mp3, flac, opus...
+    # wav (the default, any GStreamer plays it), mp3, flac, opus...
     response_format: str = "wav"
     speed: float | None = None
     # Speak an LLM answer phrase by phrase while it is written: the satellite gets a WAV stream
@@ -71,6 +66,7 @@ class TtsConfig:
     streaming: bool = True
     # A phrase is spoken once it has this many characters (shorter ones join the next).
     min_phrase_chars: int = 20
+    # Its own API; absent: the top-level openai section.
     openai: OpenAIConfig | None = None
 
 
@@ -115,7 +111,7 @@ class Config:
     vad: VadConfig = field(default_factory=VadConfig)
     http: HttpConfig = field(default_factory=HttpConfig)
     mqtt: MqttConfig = field(default_factory=MqttConfig)
-    # The default OpenAI-compatible API for the "openai" engines and the "openai" intent handler.
+    # The default OpenAI-compatible API for stt, tts and the "openai" intent handler.
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     # Handler chain, tried in order: [{type: rules, ...}, {type: openai, ...}, {type: mqtt, ...}].
     intents: list[dict[str, Any]] = field(default_factory=list)
@@ -143,6 +139,16 @@ def _build(cls: type, data: Any, where: str) -> Any:
         raise ConfigError(f"{where}: {e}") from None
 
 
+def _no_wyoming(key: str, section: dict[str, Any]) -> None:
+    """Configs from the Wyoming days: say what replaced the keys, not just "unknown key"."""
+    old = sorted({"engine", "host", "port", "speaker"} & set(section))
+    if old:
+        raise ConfigError(
+            f"{key}: {', '.join(old)}: Wyoming is no longer supported; set the service's "
+            f"OpenAI-compatible API in {key}.openai.base_url"
+        )
+
+
 def parse(data: Any) -> Config:
     if not isinstance(data, dict):
         raise ConfigError("config: expected a mapping")
@@ -166,14 +172,12 @@ def parse(data: Any) -> Config:
     for key, cls in sections.items():
         if key in data:
             section = data.pop(key)
-            if key in ("stt", "tts") and isinstance(section, dict) and "openai" in section:
-                section = dict(section)
-                section["openai"] = _build(OpenAIConfig, section["openai"], f"{key}.openai")
+            if key in ("stt", "tts") and isinstance(section, dict):
+                _no_wyoming(key, section)
+                if "openai" in section:
+                    section = dict(section)
+                    section["openai"] = _build(OpenAIConfig, section["openai"], f"{key}.openai")
             kwargs[key] = _build(cls, section, key)
-    for key in ("stt", "tts"):
-        engine = (kwargs.get(key) or sections[key]()).engine
-        if engine not in ("wyoming", "openai"):
-            raise ConfigError(f"{key}.engine: expected wyoming or openai, got {engine!r}")
     intents = data.pop("intents", None) or []
     if not isinstance(intents, list) or not all(
         isinstance(i, dict) and "type" in i for i in intents

@@ -24,25 +24,24 @@ openai:
   api_key: ""
   timeout: 60
 
-# Речь -> текст: отдельный сервис (wyoming-faster-whisper или OpenAI-совместимый).
+# Речь -> текст: OpenAI-совместимый /audio/transcriptions (servers/gigaam_openai.py,
+# Speaches, LocalAI, OpenAI...). Без своей секции openai — общий API выше.
 stt:
-  engine: wyoming                 # wyoming или openai (/audio/transcriptions)
-  host: 192.168.1.30              # wyoming: адрес сервиса
-  port: 10300
   language: ru
-  model: whisper-1                # openai: имя модели на сервере
-  # openai:                       # openai: свой API вместо секции openai выше
-  #   base_url: http://192.168.1.21:8000/v1
+  model: whisper-1                # имя модели на сервере
+  openai:
+    base_url: http://192.168.1.21:8001/v1
+    api_key: ""
 
-# Текст -> речь: отдельный сервис (wyoming-piper или OpenAI-совместимый). Колонка проигрывает
-# готовый файл по ссылке.
+# Текст -> речь: OpenAI-совместимый /audio/speech (servers/piper_openai.py, Speaches,
+# LocalAI, OpenAI...). Колонка проигрывает готовый файл по ссылке.
 tts:
-  engine: wyoming                 # wyoming или openai (/audio/speech)
-  host: 192.168.1.31              # wyoming: адрес сервиса
-  port: 10200
-  voice: ru_RU-irina-medium       # wyoming-piper: голос; openai: voice
-  model: tts-1                    # openai
-  response_format: wav            # openai: wav надёжнее всего для GStreamer колонки
+  voice: ru_RU-irina-medium
+  model: tts-1
+  response_format: wav            # wav надёжнее всего для GStreamer колонки
+  openai:
+    base_url: http://192.168.1.22:8002/v1
+    api_key: ""
   streaming: true                 # ответ LLM звучит по фразам, пока модель пишет
   min_phrase_chars: 20            # фразы короче склеиваются со следующей
 

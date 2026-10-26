@@ -1,0 +1,25 @@
+[Unit]
+Description=GigaAM speech to text, OpenAI-compatible API (/v1/audio/transcriptions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=gigaam
+Group=gigaam
+# venv with gigaam, torch and aiohttp; the model is downloaded to /var/lib/gigaam on first start.
+# warmup.wav: any short spoken phrase (16 kHz mono WAV); without it the first request is slow.
+ExecStart=/opt/gigaam/bin/python /opt/gigaam/gigaam_openai.py --model v3_e2e_rnnt --device cuda --data-dir /var/lib/gigaam --warmup /var/lib/gigaam/warmup.wav --port 8001
+Environment=HOME=/var/lib/gigaam
+Restart=on-failure
+RestartSec=10
+# The first start downloads the model.
+TimeoutStartSec=900
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/gigaam
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

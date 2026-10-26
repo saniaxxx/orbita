@@ -13,7 +13,7 @@ import time
 
 from aiohttp import web
 
-from .wyoming_io import Pcm
+from .audio import Pcm
 
 _LOG = logging.getLogger(__name__)
 

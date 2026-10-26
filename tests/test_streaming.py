@@ -3,12 +3,12 @@ import asyncio
 import aiohttp
 import pytest
 
+from orbita.audio import Pcm, from_wav
 from orbita.config import OpenAIConfig
 from orbita.http_store import AudioStore, AudioStream
 from orbita.openai_io import OpenAIClient
 from orbita.sentences import PhraseSplitter
 from orbita.streaming import StreamingAnswer
-from orbita.wyoming_io import Pcm, from_wav
 from tests.fakes import FakeOpenAI
 
 # ---------------- phrases ----------------

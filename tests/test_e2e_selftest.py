@@ -22,7 +22,7 @@ import pytest
 
 from orbita.app import App
 from orbita.config import parse
-from tests.fakes import FakeOpenAI, FakeWyoming
+from tests.fakes import FakeOpenAI
 
 DEFAULT_BIN = (
     Path(__file__).resolve().parents[2] / "saniaxxx/pulsar/satellite/target/debug/api_selftest"
@@ -105,15 +105,15 @@ def base_cfg(api_port: int, http_port: int) -> dict:
     }
 
 
-async def test_voice_run_wyoming_rules():
-    wy = FakeWyoming("Который час")
-    await wy.start()
+async def test_voice_run_rules():
+    oa = FakeOpenAI(transcript="Который час")
+    await oa.start()
     st = Selftest(free_port())
     await st.start()
     http_port = free_port()
     cfg = base_cfg(st.port, http_port) | {
-        "stt": {"engine": "wyoming", "port": wy.port},
-        "tts": {"engine": "wyoming", "port": wy.port, "voice": "ru_RU-irina-medium"},
+        "openai": {"base_url": oa.base_url},
+        "tts": {"voice": "ru_RU-irina-medium"},
         "intents": [
             {"type": "timers"},
             {"type": "rules", "rules": [{"match": "который час", "reply": "Сейчас {time}."}]},
@@ -135,9 +135,9 @@ async def test_voice_run_wyoming_rules():
         async with aiohttp.ClientSession() as s, s.get(url) as r:
             assert r.status == 200 and r.content_type == "audio/wav"
             assert (await r.read())[:4] == b"RIFF"
-        assert wy.rec.transcribe_language == ["ru"]
-        assert wy.rec.stt_bytes and wy.rec.stt_bytes[0] > 0
-        assert wy.rec.synthesized[0][1] == "ru_RU-irina-medium"
+        assert oa.rec.uploads[0]["language"] == "ru"
+        assert oa.rec.uploads[0]["bytes"] > 44
+        assert oa.rec.synthesized[0][1] == "ru_RU-irina-medium"
 
         # Timers and announcements on the same connection.
         sat = app.s.satellites["selftest"]
@@ -153,7 +153,7 @@ async def test_voice_run_wyoming_rules():
         stop.set()
         await task
         await st.stop()
-        await wy.stop()
+        await oa.stop()
 
 
 async def test_voice_run_openai_everything():
@@ -163,8 +163,8 @@ async def test_voice_run_openai_everything():
     await st.start()
     cfg = base_cfg(st.port, free_port()) | {
         "openai": {"base_url": oa.base_url, "api_key": "sk-test"},
-        "stt": {"engine": "openai", "model": "whisper-large-v3"},
-        "tts": {"engine": "openai", "model": "tts-ru", "voice": "nova"},
+        "stt": {"model": "whisper-large-v3"},
+        "tts": {"model": "tts-ru", "voice": "nova"},
         "intents": [{"type": "openai", "model": "qwen", "temperature": 0.2}],
     }
     app, stop, task = await run_app(cfg)
@@ -194,7 +194,8 @@ async def test_voice_run_openai_everything():
 async def test_stt_down_reports_error():
     st = Selftest(free_port())
     await st.start()
-    cfg = base_cfg(st.port, free_port()) | {"stt": {"engine": "wyoming", "port": free_port()}}
+    down = {"base_url": f"http://127.0.0.1:{free_port()}/v1"}
+    cfg = base_cfg(st.port, free_port()) | {"stt": {"openai": down}}
     app, stop, task = await run_app(cfg)
     try:
         await st.wait_for(r"HOOK voice_event 2\b", timeout=15)
@@ -213,13 +214,12 @@ async def test_noise_encryption(tmp_path):
     key = base64.b64encode(os.urandom(32)).decode()
     key_file = tmp_path / "api_key"
     key_file.write_text(key + "\n")
-    wy = FakeWyoming("Который час")
-    await wy.start()
+    oa = FakeOpenAI(transcript="Который час")
+    await oa.start()
     st = Selftest(free_port(), key_file)
     await st.start()
     cfg = base_cfg(st.port, free_port()) | {
-        "stt": {"engine": "wyoming", "port": wy.port},
-        "tts": {"engine": "wyoming", "port": wy.port},
+        "openai": {"base_url": oa.base_url},
         "intents": [{"type": "rules", "rules": [{"match": ".", "reply": "Да."}]}],
     }
     cfg["satellites"][0]["noise_psk"] = key
@@ -231,25 +231,21 @@ async def test_noise_encryption(tmp_path):
         stop.set()
         await task
         await st.stop()
-        await wy.stop()
+        await oa.stop()
 
 
 async def test_answer_streams_phrase_by_phrase():
     """The satellite starts playing (INTENT_PROGRESS tts_start_streaming=1) while the LLM is
     still writing; the stream from RUN_START carries every phrase."""
-    from orbita.wyoming_io import from_wav
+    from orbita.audio import from_wav
 
-    wy = FakeWyoming("расскажи про погоду")
-    await wy.start()
     answer = "Сегодня солнечно и тепло. Вечером возможен небольшой дождь. Возьмите зонт."
-    oa = FakeOpenAI(answer=answer, delta_delay=0.02)
+    oa = FakeOpenAI(answer=answer, transcript="расскажи про погоду", delta_delay=0.02)
     await oa.start()
     st = Selftest(free_port())
     await st.start()
     cfg = base_cfg(st.port, free_port()) | {
         "openai": {"base_url": oa.base_url},
-        "stt": {"engine": "wyoming", "port": wy.port},
-        "tts": {"engine": "wyoming", "port": wy.port},
         "intents": [{"type": "openai", "model": "m"}],
     }
     cfg["vad"]["timeout_seconds"] = 0.3  # the selftest's stop request comes ~0.75 s in
@@ -266,7 +262,7 @@ async def test_answer_streams_phrase_by_phrase():
         assert codes[-4:] == ["6", "7", "8", "2"], ev
         assert f"url={url}" in ev[codes.index("8")]
         assert f"text={answer}" in ev[codes.index("7")]
-        assert [t for t, _ in wy.rec.synthesized] == [
+        assert [t for t, _ in oa.rec.synthesized] == [
             "Сегодня солнечно и тепло.",
             "Вечером возможен небольшой дождь.",
             "Возьмите зонт.",
@@ -274,27 +270,23 @@ async def test_answer_streams_phrase_by_phrase():
         async with aiohttp.ClientSession() as s, s.get(url) as r:
             body = await r.read()
         pcm = from_wav(body)
-        assert pcm.rate == 22050 and len(pcm.data) == 3 * int(0.2 * 22050) * 2
+        assert pcm.rate == 24000 and len(pcm.data) == 3 * int(0.1 * 24000) * 2
         assert oa.rec.chats[0]["stream"] is True
     finally:
         stop.set()
         await task
         await st.stop()
-        await wy.stop()
         await oa.stop()
 
 
 async def test_streaming_off_sends_one_file():
-    wy = FakeWyoming("привет")
-    await wy.start()
     oa = FakeOpenAI(answer="Привет. Как ваши дела сегодня? Всё хорошо?")
     await oa.start()
     st = Selftest(free_port())
     await st.start()
     cfg = base_cfg(st.port, free_port()) | {
         "openai": {"base_url": oa.base_url},
-        "stt": {"engine": "wyoming", "port": wy.port},
-        "tts": {"engine": "wyoming", "port": wy.port, "streaming": False},
+        "tts": {"streaming": False},
         "intents": [{"type": "openai", "model": "m"}],
     }
     app, stop, task = await run_app(cfg)
@@ -305,10 +297,9 @@ async def test_streaming_off_sends_one_file():
         url = re.search(r"url=(\S+)", next(e for e in ev if e.startswith("8 "))).group(1)
         assert "/tts/stream/" not in url
         assert oa.rec.chats[0]["stream"] is False
-        assert len(wy.rec.synthesized) == 1
+        assert len(oa.rec.synthesized) == 1
     finally:
         stop.set()
         await task
         await st.stop()
-        await wy.stop()
         await oa.stop()

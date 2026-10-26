@@ -4,7 +4,7 @@
 #
 #   sudo scripts/install.sh
 #
-# Speech to text and text to speech (Wyoming or OpenAI-compatible) run as separate services,
+# Speech to text and text to speech (OpenAI-compatible, see servers/) run as separate services,
 # not installed here: set their addresses in the config.
 #
 # Re-running upgrades the packages and the unit files; /etc/orbita/config.yaml and

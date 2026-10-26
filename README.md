@@ -12,9 +12,9 @@ orbita:
 ```
 колонка: «Алиса» → звук 16 кГц по ESPHome API
   → orbita: конец фразы (VAD)
-  → речь в текст: Wyoming (faster-whisper) или OpenAI-совместимый /audio/transcriptions
+  → речь в текст: OpenAI-совместимый /audio/transcriptions (GigaAM, Whisper...)
   → ответ: таймеры → правила → LLM (OpenAI-совместимый /chat/completions) → MQTT (Node-RED)
-  → текст в речь: Wyoming (Piper) или OpenAI-совместимый /audio/speech
+  → текст в речь: OpenAI-совместимый /audio/speech (Piper...)
   → колонка скачивает ответ по HTTP и проигрывает его
 ```
 
@@ -47,9 +47,10 @@ sudo scripts/install.sh
 `/etc/orbita/config.yaml` (если его ещё нет), файл секретов `/etc/orbita/env` и сервис
 `orbita.service`. orbita слушает 10800/tcp: оттуда колонки скачивают ответы.
 
-Распознавание и синтез речи в репозиторий не входят: это отдельные сервисы, их адреса задаются
-в конфиге (`stt`, `tts`). Подойдёт любой сервер Wyoming (wyoming-faster-whisper, wyoming-piper)
-или OpenAI-совместимый API (`/audio/transcriptions`, `/audio/speech`).
+Распознавание и синтез речи — отдельные сервисы с OpenAI-совместимым API
+(`/audio/transcriptions`, `/audio/speech`), их адреса задаются в конфиге (`stt`, `tts`).
+Подойдут Speaches, LocalAI, OpenAI или серверы из [`servers/`](#серверы-распознавания-и-синтеза):
+GigaAM и Piper.
 
 Дальше:
 
@@ -96,8 +97,12 @@ openai:
   base_url: http://192.168.1.20:8000/v1   # ваш OpenAI-совместимый сервер
   api_key: ""                             # или OPENAI_API_KEY в /etc/orbita/env
 
-stt: {engine: wyoming, host: 192.168.1.30, port: 10300, language: ru}  # или engine: openai
-tts: {engine: wyoming, host: 192.168.1.31, port: 10200, voice: ru_RU-irina-medium}
+stt:
+  language: ru
+  openai: {base_url: http://192.168.1.21:8001/v1}     # servers/gigaam_openai.py
+tts:
+  voice: ru_RU-irina-medium
+  openai: {base_url: http://192.168.1.22:8002/v1}     # servers/piper_openai.py
 
 intents:
   - type: timers
@@ -109,9 +114,25 @@ intents:
     model: qwen2.5-7b-instruct
 ```
 
-У `stt` и `tts` может быть свой `openai:` (`base_url`, `api_key`), если распознавание и синтез
-живут не на том сервере, что LLM. Для `tts.engine: openai` формат ответа по умолчанию `wav`:
-его точно проиграет GStreamer колонки.
+У `stt` и `tts` свой `openai:` (`base_url`, `api_key`), если распознавание и синтез живут не на
+том сервере, что LLM; без него — общая секция `openai`. Формат синтеза по умолчанию `wav`: его
+точно проиграет GStreamer колонки.
+
+Wyoming orbita больше не поддерживает: ключи `engine`, `host`, `port` у `stt`/`tts` — ошибка
+конфига с подсказкой.
+
+### Серверы распознавания и синтеза
+
+В [`servers/`](servers) — однофайловые OpenAI-совместимые серверы на aiohttp, каждый со своим
+unit-файлом в `systemd/`:
+
+| Сервер | API | Порт | Unit |
+|---|---|---|---|
+| `gigaam_openai.py` — [GigaAM](https://github.com/salute-developers/GigaAM) (русский, с пунктуацией) | `POST /v1/audio/transcriptions` | 8001 | `gigaam-openai.service` |
+| `piper_openai.py` — [Piper](https://github.com/OHF-Voice/piper1-gpl) | `POST /v1/audio/speech` (`wav`, `pcm`) | 8002 | `piper-openai.service` |
+
+Оба отдают `GET /v1/models` и `GET /health`, ошибки — `{"error": {"message": ...}}`, ключ
+(`--api-key`) — по желанию. Модель загружается при старте, запросы выполняются по очереди.
 
 ### MQTT
 
@@ -160,24 +181,25 @@ orbita повторяет то, что делает Home Assistant с ESPHome-с
 4. Когда текст закончился — `INTENT_END`, `TTS_START{text}`, `TTS_END{тот же url}`; `RUN_END` —
    когда озвучена последняя фраза.
 
-Ответы правил, таймеров и Node-RED короткие и идут одним файлом. Синтез через Wyoming отдаёт
-звук фразы ещё во время синтеза; OpenAI-совместимый `/audio/speech` — целиком на каждую фразу
-(в формате `wav`). Выключить: `tts.streaming: false` (для всех) или `streaming: false` у колонки.
+Ответы правил, таймеров и Node-RED короткие и идут одним файлом. Каждая фраза синтезируется
+целиком (`/audio/speech` в формате `wav`). Выключить: `tts.streaming: false` (для всех) или
+`streaming: false` у колонки.
 
 ```
 orbita/
   satellite.py   соединение с колонкой, протокол голосового диалога, объявления, таймеры
   vad.py         конец фразы
-  speech.py      STT/TTS: Wyoming или OpenAI-совместимые
+  speech.py      STT/TTS через OpenAI-совместимый API
   streaming.py   потоковый ответ: фразы → TTS → растущий WAV
   sentences.py   разбиение текста LLM на фразы
-  wyoming_io.py  клиент Wyoming
+  audio.py       PCM и WAV
   openai_io.py   клиент OpenAI-совместимого API
   intents.py     цепочка обработчиков: rules, openai, mqtt; история диалога
   timers.py      таймеры по-русски
   bus.py         MQTT
   http_store.py  HTTP-сервер ответов: файлы и потоки
-systemd/         orbita.service
+servers/         OpenAI-совместимые серверы: gigaam_openai.py (STT), piper_openai.py (TTS)
+systemd/         orbita.service, gigaam-openai.service, piper-openai.service
 scripts/         install.sh
 ```
 

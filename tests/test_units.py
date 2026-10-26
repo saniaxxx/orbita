@@ -22,15 +22,17 @@ def test_config_errors():
         parse({"satellites": [{"name": "a", "host": "h", "bogus": 1}]})
     with pytest.raises(ConfigError, match="unique"):
         parse({"satellites": [{"name": "a", "host": "h"}, {"name": "a", "host": "g"}]})
-    with pytest.raises(ConfigError, match="engine"):
-        parse({"satellites": [{"name": "a", "host": "h"}], "stt": {"engine": "x"}})
+    with pytest.raises(ConfigError, match="Wyoming is no longer supported.*stt.openai.base_url"):
+        parse({"satellites": [{"name": "a", "host": "h"}], "stt": {"engine": "wyoming"}})
+    with pytest.raises(ConfigError, match="tts: host, port: Wyoming"):
+        parse({"satellites": [{"name": "a", "host": "h"}], "tts": {"host": "x", "port": 10200}})
 
 
 def test_config_nested_openai():
     cfg = parse(
         {
             "satellites": [{"name": "a", "host": "h"}],
-            "stt": {"engine": "openai", "openai": {"base_url": "http://x/v1", "api_key": "k"}},
+            "stt": {"openai": {"base_url": "http://x/v1", "api_key": "k"}},
         }
     )
     assert cfg.stt.openai.base_url == "http://x/v1"

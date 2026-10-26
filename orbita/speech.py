@@ -1,26 +1,19 @@
-"""Speech to text and text to speech behind one interface: Wyoming or OpenAI-compatible."""
+"""Speech to text and text to speech over OpenAI-compatible APIs (/audio/transcriptions,
+/audio/speech)."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Protocol
 
+from .audio import Pcm, from_wav
 from .config import OpenAIConfig, SttConfig, TtsConfig
 from .openai_io import OpenAIClient
-from .wyoming_io import Pcm, SttSession, from_wav, synthesize, synthesize_stream
 
 # One transcription without an end-of-audio is cut at this size (60 s of 16 kHz 16-bit).
 MAX_PCM = 60 * 16000 * 2
 
 
-class Transcription(Protocol):
-    async def start(self) -> None: ...
-    async def feed(self, audio: bytes) -> None: ...
-    async def finish(self) -> str: ...
-    async def close(self) -> None: ...
-
-
-class _OpenAITranscription:
+class Transcription:
     """The API takes a whole file: audio is collected and uploaded on finish."""
 
     def __init__(self, client: OpenAIClient, model: str, language: str | None) -> None:
@@ -46,39 +39,28 @@ class _OpenAITranscription:
 class Stt:
     def __init__(self, cfg: SttConfig, default_api: OpenAIConfig) -> None:
         self._cfg = cfg
-        self._api = OpenAIClient(cfg.openai or default_api) if cfg.engine == "openai" else None
+        self._api = OpenAIClient(cfg.openai or default_api)
 
     def open(self, language: str | None = None) -> Transcription:
-        lang = language or self._cfg.language or None
-        if self._api is not None:
-            return _OpenAITranscription(self._api, self._cfg.model, lang)
-        return SttSession(self._cfg.host, self._cfg.port, lang)
+        return Transcription(self._api, self._cfg.model, language or self._cfg.language or None)
 
 
 class Tts:
     def __init__(self, cfg: TtsConfig, default_api: OpenAIConfig) -> None:
         self._cfg = cfg
-        self._api = OpenAIClient(cfg.openai or default_api) if cfg.engine == "openai" else None
+        self._api = OpenAIClient(cfg.openai or default_api)
 
     async def synthesize(self, text: str, voice: str | None = None) -> tuple[bytes, str]:
         """-> (audio file, extension)."""
-        voice = voice or self._cfg.voice
-        if self._api is not None:
-            fmt = self._cfg.response_format
-            data = await self._api.speech(text, self._cfg.model, voice, fmt, self._cfg.speed)
-            return data, fmt
-        wav = await synthesize(self._cfg.host, self._cfg.port, text, voice, self._cfg.speaker)
-        return wav, "wav"
+        fmt = self._cfg.response_format
+        data = await self._api.speech(
+            text, self._cfg.model, voice or self._cfg.voice, fmt, self._cfg.speed
+        )
+        return data, fmt
 
     async def stream(self, text: str, voice: str | None = None) -> AsyncIterator[Pcm]:
-        """Text -> PCM as soon as the engine has it (Wyoming: while it synthesizes; OpenAI: the
-        whole phrase, requested as WAV)."""
-        voice = voice or self._cfg.voice
-        if self._api is not None:
-            data = await self._api.speech(text, self._cfg.model, voice, "wav", self._cfg.speed)
-            yield from_wav(data)
-            return
-        async for p in synthesize_stream(
-            self._cfg.host, self._cfg.port, text, voice, self._cfg.speaker
-        ):
-            yield p
+        """Text -> PCM: the whole phrase, requested as WAV."""
+        data = await self._api.speech(
+            text, self._cfg.model, voice or self._cfg.voice, "wav", self._cfg.speed
+        )
+        yield from_wav(data)
