@@ -169,22 +169,11 @@ class RulesHandler(Handler):
 
 _MARKUP = re.compile(r"[*_`#>]+")
 
-# LLMs now and then write a Russian word with Latin letters in it ("Лuna"): TTS then reads it
-# letter by letter or in English. Latin letters that look like Cyrillic ones become those
-# (c -> с, not к; p -> р, not п), the rest the Cyrillic letter they sound as.
-_LATIN_TO_CYRILLIC = str.maketrans(
-    "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ",
-    "аАбВсСдДеЕфФгГхНиИйЙкКлЛмМнНоОрРкКрРсСтТуУвВвВхХуУзЗ",
-)
-# A word with at least one Cyrillic and one Latin letter; all-Latin words (Wi-Fi) stay.
-_MIXED_WORD = re.compile(r"\b(?=\w*[а-яёА-ЯЁ])(?=\w*[a-zA-Z])\w+\b")
-
 
 def speakable(text: str) -> str:
-    """LLM output -> text for TTS: no markdown, one line, no Latin letters in Russian words."""
+    """LLM output -> text for TTS: no markdown, one line."""
     text = _MARKUP.sub("", text)
     text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
-    text = _MIXED_WORD.sub(lambda m: m.group().translate(_LATIN_TO_CYRILLIC), text)
     return re.sub(r"\s+", " ", text).strip()
 
 
