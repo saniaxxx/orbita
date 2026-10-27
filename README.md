@@ -130,6 +130,7 @@ unit-файлом в `systemd/`:
 |---|---|---|---|
 | `gigaam_openai.py` — [GigaAM](https://github.com/salute-developers/GigaAM) (русский, с пунктуацией) | `POST /v1/audio/transcriptions` | 8001 | `gigaam-openai.service` |
 | `piper_openai.py` — [Piper](https://github.com/OHF-Voice/piper1-gpl) | `POST /v1/audio/speech` (`wav`, `pcm`) | 8002 | `piper-openai.service` |
+| `embed_openai.py` — векторы текста ([rubert-tiny2](https://huggingface.co/cointegrated/rubert-tiny2)) для классификатора режима ответа | `POST /v1/embeddings` | 8004 | `embed-openai.service` |
 | `wyoming_openai.py` — мост к Wyoming-синтезатору | `POST /v1/audio/speech` (`wav`, `pcm`) | 8003 | `wyoming-openai.service` |
 
 Все отдают `GET /v1/models` и `GET /health`, ошибки — `{"error": {"message": ...}}`, ключ
@@ -227,9 +228,9 @@ orbita/
   bus.py         MQTT
   http_store.py  HTTP-сервер ответов: файлы и потоки
 servers/         OpenAI-совместимые серверы: gigaam_openai.py (STT), piper_openai.py (TTS),
-                 wyoming_openai.py (мост к Wyoming-синтезатору)
+                 wyoming_openai.py (мост к Wyoming-синтезатору), embed_openai.py (векторы)
 systemd/         orbita.service, gigaam-openai.service, piper-openai.service, piper-ru.service,
-                 wyoming-openai.service
+                 wyoming-openai.service, embed-openai.service
 scripts/         install.sh; make_utterance.py и latency.py — замер задержки голосом;
                  llm_eval.py — проверка LLM на голосовых вопросах
 docs/            spec.md (спецификация), measurements.md (замеры)

@@ -225,11 +225,14 @@ async def main() -> None:
     ap.add_argument("--base-url", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--no-think", action="store_true")
+    ap.add_argument("--classifier", help="embeddings base URL, as intents.openai.classifier")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--out", help="markdown report (also <out>.json)")
     args = ap.parse_args()
 
     intent: dict = {"type": "openai", "model": args.model, "temperature": 0.4, "max_tokens": 200}
+    if args.classifier:
+        intent["classifier"] = {"base_url": args.classifier, "model": "embeddings"}
     if args.no_think:
         intent["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
     cfg = parse(

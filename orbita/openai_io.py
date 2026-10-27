@@ -87,6 +87,24 @@ class OpenAIClient:
                         if delta:
                             yield delta
 
+    async def embeddings(self, texts: list[str], model: str) -> list[list[float]]:
+        """Texts -> their vectors, in the same order."""
+        payload = {"model": model, "input": texts}
+        async with aiohttp.ClientSession(timeout=self._timeout()) as s:
+            async with s.post(
+                f"{self._base}/embeddings", json=payload, headers=self._headers()
+            ) as resp:
+                await self._check(resp, "embeddings")
+                data = await resp.json(content_type=None)
+        try:
+            items = sorted(data["data"], key=lambda d: d["index"])
+            vectors = [[float(x) for x in d["embedding"]] for d in items]
+        except (KeyError, TypeError, ValueError):
+            raise OpenAIError(f"embeddings: unexpected response {str(data)[:300]}") from None
+        if len(vectors) != len(texts):
+            raise OpenAIError(f"embeddings: {len(vectors)} vectors for {len(texts)} texts")
+        return vectors
+
     async def transcribe(self, pcm: bytes, model: str, language: str | None) -> str:
         """16 kHz mono 16-bit PCM -> text."""
         form = aiohttp.FormData()

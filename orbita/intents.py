@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import math
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -35,22 +36,63 @@ DEFAULT_SYSTEM = (
 )
 
 # Modes: a request that matches one gets its instruction (in the last message, next to the time,
-# so the system prompt and the prompt cache stay the same) and its own parameters. The first
-# match wins; no match: the system prompt alone. `modes:` of the openai handler replaces these.
+# so the system prompt and the prompt cache stay the same) and its own parameters. A mode is
+# picked by its regular expression (`match`, first wins) or, with a classifier configured, by
+# meaning: the request goes to the mode whose `examples` it is closest to, or to none if it is
+# closest to the ordinary requests (`classifier.plain_examples`). `modes:` of the openai handler
+# replaces these.
 DEFAULT_MODES: list[dict[str, Any]] = [
     {
         "name": "long",
         "match": r"сказк|истори|сти[хш]|подробн|поподробн|развёрнут|развернут",
-        "prompt": "ответь развёрнуто, до пятнадцати предложений",
+        "examples": [
+            "Расскажи сказку про лису",
+            "Расскажи подробно, как работает двигатель",
+            "Прочитай стихотворение про зиму",
+            "Расскажи длинную историю про пиратов",
+            "Объясни развёрнуто, что такое квантовая физика",
+            "Почитай мне что-нибудь интересное",
+            "Сочини рассказ про дракона",
+            "Расскажи что-нибудь подольше, хочу послушать",
+        ],
+        "prompt": (
+            "сразу выполни просьбу, не переспрашивая: расскажи, прочитай или объясни развёрнуто, "
+            "до пятнадцати предложений"
+        ),
         "max_tokens": 600,
     },
 ]
+# Ordinary requests: questions, smart home, timers, small talk.
+DEFAULT_PLAIN_EXAMPLES = [
+    "Какая столица Франции?",
+    "Сколько лет Земле?",
+    "Кто написал Муму?",
+    "Сколько будет семь на восемь?",
+    "Какая завтра погода?",
+    "Включи свет в гостиной",
+    "Выключи телевизор",
+    "Сделай температуру двадцать два градуса",
+    "Закрой шторы в спальне",
+    "Поставь таймер на десять минут",
+    "Разбуди меня в шесть утра",
+    "Сколько осталось на таймере?",
+    "Отмени будильник",
+    "Напомни через час позвонить маме",
+    "Привет",
+    "Как у тебя дела?",
+    "Спасибо большое",
+    "Мне грустно",
+    "Ты кто такая?",
+    "Что ты умеешь?",
+]
+MODE_KEYS = {"name", "match", "examples", "prompt", "temperature", "max_tokens", "top_p"}
 
 
 @dataclass
 class Mode:
     name: str
-    match: re.Pattern[str]
+    match: re.Pattern[str] | None
+    examples: list[str]
     prompt: str
     params: dict[str, Any]
 
@@ -61,18 +103,87 @@ def _modes(specs: Any) -> list[Mode]:
     out = []
     for i, s in enumerate(specs):
         where = f"intents.openai.modes[{i}]"
-        if not isinstance(s, dict) or not s.get("match") or not s.get("prompt"):
-            raise ConfigError(f"{where}: 'match' and 'prompt' are required")
-        unknown = set(s) - {"name", "match", "prompt", "temperature", "max_tokens", "top_p"}
+        if not isinstance(s, dict) or not s.get("prompt"):
+            raise ConfigError(f"{where}: 'prompt' is required")
+        if not s.get("match") and not s.get("examples"):
+            raise ConfigError(f"{where}: 'match' or 'examples' is required")
+        unknown = set(s) - MODE_KEYS
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
-        try:
-            match = re.compile(str(s["match"]), re.IGNORECASE)
-        except re.error as e:
-            raise ConfigError(f"{where}.match: {e}") from None
+        match = None
+        if s.get("match"):
+            try:
+                match = re.compile(str(s["match"]), re.IGNORECASE)
+            except re.error as e:
+                raise ConfigError(f"{where}.match: {e}") from None
+        examples = [str(x) for x in s.get("examples") or []]
         params = {k: s[k] for k in ("temperature", "max_tokens", "top_p") if k in s}
-        out.append(Mode(str(s.get("name", i)), match, str(s["prompt"]), params))
+        out.append(Mode(str(s.get("name", i)), match, examples, str(s["prompt"]), params))
     return out
+
+
+def _centroid(vectors: list[list[float]]) -> list[float]:
+    c = [sum(xs) / len(vectors) for xs in zip(*vectors, strict=True)]
+    norm = math.sqrt(sum(x * x for x in c)) or 1.0
+    return [x / norm for x in c]
+
+
+class Classifier:
+    """Request -> mode by meaning, over an OpenAI-compatible /embeddings (servers/embed_openai.py):
+    the nearest centroid of the modes' examples and of the ordinary requests. The examples are
+    embedded on first use; while the service is down, no mode is picked (the regular expressions
+    still work) and it is retried after RETRY seconds."""
+
+    RETRY = 60.0
+
+    def __init__(self, spec: Any, modes: list[Mode]) -> None:
+        if not isinstance(spec, dict) or not spec.get("base_url"):
+            raise ConfigError("intents.openai.classifier: 'base_url' is required")
+        unknown = set(spec) - {"base_url", "api_key", "model", "timeout", "plain_examples"}
+        if unknown:
+            raise ConfigError(f"intents.openai.classifier: unknown key(s) {', '.join(unknown)}")
+        self._client = OpenAIClient(
+            OpenAIConfig(
+                base_url=str(spec["base_url"]),
+                api_key=str(spec.get("api_key", "")),
+                timeout=float(spec.get("timeout", 1.0)),
+            )
+        )
+        self._model = str(spec.get("model", "embeddings"))
+        self._plain = [str(x) for x in spec.get("plain_examples") or DEFAULT_PLAIN_EXAMPLES]
+        self._modes = [m for m in modes if m.examples]
+        self._centroids: list[tuple[Mode | None, list[float]]] | None = None
+        self._failed_at = -math.inf
+
+    async def _load(self) -> list[tuple[Mode | None, list[float]]]:
+        groups: list[tuple[Mode | None, list[str]]] = [(None, self._plain)]
+        groups += [(m, m.examples) for m in self._modes]
+        texts = [t for _, xs in groups for t in xs]
+        vectors = await self._client.embeddings(texts, self._model)
+        out, i = [], 0
+        for mode, xs in groups:
+            out.append((mode, _centroid(vectors[i : i + len(xs)])))
+            i += len(xs)
+        return out
+
+    async def classify(self, text: str) -> tuple[Mode | None, float]:
+        """-> (mode or None for an ordinary request, similarity)."""
+        if not self._modes or time.monotonic() - self._failed_at < self.RETRY:
+            return None, 0.0
+        try:
+            if self._centroids is None:
+                self._centroids = await self._load()
+            (v,) = await self._client.embeddings([text], self._model)
+        except Exception as e:  # noqa: BLE001 - classification is a nicety, never a failure
+            _LOG.warning(
+                "classifier unavailable (%s); regular expressions only for %.0f s", e, self.RETRY
+            )
+            self._failed_at = time.monotonic()
+            return None, 0.0
+        mode, c = max(
+            self._centroids, key=lambda mc: sum(a * b for a, b in zip(v, mc[1], strict=True))
+        )
+        return mode, sum(a * b for a, b in zip(v, c, strict=True))
 
 
 # Turns kept per conversation (user + assistant messages).
@@ -240,6 +351,9 @@ class OpenAIHandler(Handler):
                 self._params[key] = spec[key]
         self._params.update(spec.get("extra_body") or {})
         self._modes = _modes(spec.get("modes", DEFAULT_MODES))
+        self._classifier = (
+            Classifier(spec["classifier"], self._modes) if spec.get("classifier") else None
+        )
         self._tz = tz
 
     def _system_message(self, req: Request) -> str:
@@ -252,8 +366,18 @@ class OpenAIHandler(Handler):
             f"если спросят. Колонка: {req.satellite}."
         )
 
-    def _mode(self, req: Request) -> Mode | None:
-        return next((m for m in self._modes if m.match.search(req.text)), None)
+    async def _mode(self, req: Request) -> Mode | None:
+        """The regular expressions first (no cost), then the classifier."""
+        for m in self._modes:
+            if m.match is not None and m.match.search(req.text):
+                _LOG.info("%s: llm mode %s (match)", req.satellite, m.name)
+                return m
+        if self._classifier is None:
+            return None
+        mode, similarity = await self._classifier.classify(req.text)
+        if mode is not None:
+            _LOG.info("%s: llm mode %s (classifier, %.2f)", req.satellite, mode.name, similarity)
+        return mode
 
     def _user_message(self, req: Request, mode: Mode | None) -> str:
         v = time_vars(now_in(self._tz))
@@ -264,7 +388,7 @@ class OpenAIHandler(Handler):
 
     async def handle(self, req: Request, conv: Conversation) -> Reply | None:
         history = conv.messages[-2 * self._history :] if self._history > 0 else []
-        mode = self._mode(req)
+        mode = await self._mode(req)
         messages = [
             {"role": "system", "content": self._system_message(req)},
             *history,
@@ -272,7 +396,6 @@ class OpenAIHandler(Handler):
         ]
         params = self._params
         if mode is not None:
-            _LOG.info("%s: llm mode %s", req.satellite, mode.name)
             params = {**params, **mode.params}
         if req.on_text is None:
             answer = speakable(await self._client.chat(self._model, messages, **params))

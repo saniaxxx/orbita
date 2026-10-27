@@ -1,0 +1,25 @@
+[Unit]
+Description=Text embeddings, OpenAI-compatible API (/v1/embeddings), for orbita's request classifier
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=embed
+Group=embed
+# venv with torch (CPU), transformers and aiohttp; the model is downloaded to ~/.cache on first start
+Environment=HOME=/var/lib/embed
+Environment=HF_HUB_DISABLE_XET=1
+Environment=USE_TF=0
+ExecStart=/opt/embed/bin/python /opt/embed/embed_openai.py --model cointegrated/rubert-tiny2 --port 8004
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/embed
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
