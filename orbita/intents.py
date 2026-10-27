@@ -34,6 +34,47 @@ DEFAULT_SYSTEM = (
     "пиши так, как их произносят."
 )
 
+# Modes: a request that matches one gets its instruction (in the last message, next to the time,
+# so the system prompt and the prompt cache stay the same) and its own parameters. The first
+# match wins; no match: the system prompt alone. `modes:` of the openai handler replaces these.
+DEFAULT_MODES: list[dict[str, Any]] = [
+    {
+        "name": "long",
+        "match": r"сказк|истори|стих|подробн|поподробн|развёрнут|развернут",
+        "prompt": "ответь развёрнуто, до пятнадцати предложений",
+        "max_tokens": 600,
+    },
+]
+
+
+@dataclass
+class Mode:
+    name: str
+    match: re.Pattern[str]
+    prompt: str
+    params: dict[str, Any]
+
+
+def _modes(specs: Any) -> list[Mode]:
+    if not isinstance(specs, list):
+        raise ConfigError("intents.openai.modes: expected a list")
+    out = []
+    for i, s in enumerate(specs):
+        where = f"intents.openai.modes[{i}]"
+        if not isinstance(s, dict) or not s.get("match") or not s.get("prompt"):
+            raise ConfigError(f"{where}: 'match' and 'prompt' are required")
+        unknown = set(s) - {"name", "match", "prompt", "temperature", "max_tokens", "top_p"}
+        if unknown:
+            raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
+        try:
+            match = re.compile(str(s["match"]), re.IGNORECASE)
+        except re.error as e:
+            raise ConfigError(f"{where}.match: {e}") from None
+        params = {k: s[k] for k in ("temperature", "max_tokens", "top_p") if k in s}
+        out.append(Mode(str(s.get("name", i)), match, str(s["prompt"]), params))
+    return out
+
+
 # Turns kept per conversation (user + assistant messages).
 MAX_MESSAGES = 40
 
@@ -198,44 +239,60 @@ class OpenAIHandler(Handler):
             if key in spec:
                 self._params[key] = spec[key]
         self._params.update(spec.get("extra_body") or {})
+        self._modes = _modes(spec.get("modes", DEFAULT_MODES))
         self._tz = tz
 
     def _system_message(self, req: Request) -> str:
         # The same for every turn of a satellite: llama.cpp, vLLM, Ollama reuse the computed
-        # prompt (system + history) only while its start does not change, so the time goes into
-        # the last message instead.
+        # prompt (system + history) only while its start does not change, so the time and the
+        # mode's instruction go into the last message instead.
         return (
             f"{self._system}\nВ начале сообщения пользователя в квадратных скобках — текущие "
-            f"дата и время; называй их, только если спросят. Колонка: {req.satellite}."
+            f"дата и время, а иногда и указание, как ответить; дату и время называй, только "
+            f"если спросят. Колонка: {req.satellite}."
         )
 
-    def _user_message(self, req: Request) -> str:
+    def _mode(self, req: Request) -> Mode | None:
+        return next((m for m in self._modes if m.match.search(req.text)), None)
+
+    def _user_message(self, req: Request, mode: Mode | None) -> str:
         v = time_vars(now_in(self._tz))
-        return f"[{v['weekday']}, {v['date']} {v['year']}, {v['time']}]\n{req.text}"
+        head = f"{v['weekday']}, {v['date']} {v['year']}, {v['time']}"
+        if mode is not None:
+            head += f"; {mode.prompt}"
+        return f"[{head}]\n{req.text}"
 
     async def handle(self, req: Request, conv: Conversation) -> Reply | None:
         history = conv.messages[-2 * self._history :] if self._history > 0 else []
+        mode = self._mode(req)
         messages = [
             {"role": "system", "content": self._system_message(req)},
             *history,
-            {"role": "user", "content": self._user_message(req)},
+            {"role": "user", "content": self._user_message(req, mode)},
         ]
+        params = self._params
+        if mode is not None:
+            _LOG.info("%s: llm mode %s", req.satellite, mode.name)
+            params = {**params, **mode.params}
         if req.on_text is None:
-            answer = speakable(await self._client.chat(self._model, messages, **self._params))
+            answer = speakable(await self._client.chat(self._model, messages, **params))
             streamed = False
         else:
-            answer, streamed = await self._stream(messages, req.on_text)
+            answer, streamed = await self._stream(messages, req.on_text, params)
         if not answer:
             return None
         ask = self._continue_on_question and answer.rstrip().endswith("?")
         return Reply(answer, ask, self.name, streamed)
 
     async def _stream(
-        self, messages: list[dict[str, str]], on_text: Callable[[str], Awaitable[None]]
+        self,
+        messages: list[dict[str, str]],
+        on_text: Callable[[str], Awaitable[None]],
+        params: dict[str, Any],
     ) -> tuple[str, bool]:
         parts: list[str] = []
         try:
-            async for delta in self._client.chat_stream(self._model, messages, **self._params):
+            async for delta in self._client.chat_stream(self._model, messages, **params):
                 parts.append(delta)
                 await on_text(delta)
         except Exception as e:  # noqa: BLE001

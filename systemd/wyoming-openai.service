@@ -11,7 +11,7 @@ Group=tts
 # Any venv with wyoming and aiohttp; here the Wyoming server's own.
 # --voices: only these reach the server (the first is the default); keep in step with the
 # voices in /var/lib/piper-ru and piper-ru's --max-cached-voices.
-ExecStart=/opt/piper-ru/.venv/bin/python /opt/piper-ru/wyoming_openai.py --wyoming tcp://127.0.0.1:10200 --port 8003 --voices ru_RU-fr6800-medium,ru_RU-dict-medium_epoch3874 --warmup "Проверка связи."
+ExecStart=/opt/piper-ru/.venv/bin/python /opt/piper-ru/wyoming_openai.py --wyoming tcp://127.0.0.1:10200 --port 8003 --voices ru_RU-dict-medium_epoch3874,ru_RU-fr6800-medium --warmup "Проверка связи."
 Restart=on-failure
 RestartSec=5
 

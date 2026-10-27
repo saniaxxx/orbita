@@ -14,7 +14,7 @@ WorkingDirectory=/opt/piper-ru
 Environment=HOME=/var/lib/piper-ru
 # cuDNN and CUDA from the venv's nvidia-* wheels (wyoming-piper does not preload them)
 Environment=LD_LIBRARY_PATH=/opt/piper-ru/.venv/lib/python3.13/site-packages/nvidia/cu13/lib:/opt/piper-ru/.venv/lib/python3.13/site-packages/nvidia/cudnn/lib
-ExecStart=/opt/piper-ru/.venv/bin/python -m wyoming_piper --uri tcp://127.0.0.1:10200 --data-dir /var/lib/piper-ru --voice ru_RU-fr6800-medium --max-cached-voices 1 --yo --use-cuda
+ExecStart=/opt/piper-ru/.venv/bin/python -m wyoming_piper --uri tcp://127.0.0.1:10200 --data-dir /var/lib/piper-ru --voice ru_RU-dict-medium_epoch3874 --max-cached-voices 1 --yo --use-cuda
 Restart=on-failure
 RestartSec=5
 
