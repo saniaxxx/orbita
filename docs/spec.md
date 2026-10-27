@@ -191,7 +191,7 @@ JSON `{model, input, voice, response_format, speed?}`. Для потоковог
 
 | Где | Что | Адрес |
 |---|---|---|
-| pve3, CT 100 `ornith` (GPU RTX 5060 8 ГБ) | llama.cpp `Qwen3.5-9B-Q4_K_M` (alias `qwen3.5-9b-q4km`, контекст 16 384, 2 слота, KV q8; 5,5 ГБ видеопамяти) | 192.168.250.102:8080 |
+| pve3, CT 100 `ornith` (GPU RTX 5060 8 ГБ) | llama.cpp `Qwen3.5-9B-Q4_K_M` (alias `qwen3.5-9b-q4km`, `-c 16384 -np 2`: два слота по 8 192 токена, KV q8; 5,5 ГБ видеопамяти, из них кэш и буферы ~0,1 ГБ; диалогу orbita нужно 1–2 тыс. токенов) | 192.168.250.102:8080 |
 | | `gigaam-openai` (STT) | :8001 |
 | | `piper-ru` (Wyoming, только localhost) + `wyoming-openai` (TTS), голоса `fr6800` (по умолчанию), `dict-medium_epoch3874` | :8003 |
 | pve3, CT 101 `orbita` | orbita | 192.168.250.101:10800 |
