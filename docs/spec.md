@@ -196,7 +196,7 @@ JSON `{model, input, voice, response_format, speed?}`. Для потоковог
 | | `piper-ru` (Wyoming, только localhost) + `wyoming-openai` (TTS), голоса `fr6800` (по умолчанию), `dict-medium_epoch3874` | :8003 |
 | pve3, CT 101 `orbita` | orbita | 192.168.250.101:10800 |
 | pve3, CT 102 `piper` | `piper-openai`, стоковый Piper на CPU (запасной) | 192.168.250.103:8002 |
-| pve-test, CT 103 | linux-voice-assistant (тестовая колонка) | 192.168.250.188:6053 |
+| pve-test, CT 103 | linux-voice-assistant (тестовая колонка; выход 125 %, `/etc/pulse/system.pa.d/volume.pa`) | 192.168.250.188:6053 |
 
 На хосте pve3 `nvidia-devnodes.service` создаёт `/dev/nvidia*` до `pve-guests.service`.
 Порядок запуска: CT 100 (`order=1,up=30`), CT 102 (`2`), CT 101 (`3`).
