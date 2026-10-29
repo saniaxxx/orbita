@@ -1,0 +1,17 @@
+diff --git a/linux_voice_assistant/satellite.py b/linux_voice_assistant/satellite.py
+index 6a07d28..5b6779e 100644
+--- a/linux_voice_assistant/satellite.py
++++ b/linux_voice_assistant/satellite.py
+@@ -420,6 +420,12 @@ class VoiceSatelliteProtocol(APIServer):
+             # Don't respond to wake words when muted (voice_assistant.stop behavior)
+             return
+
++        if self._pipeline_active and self.state.stop_word.id in self.state.active_wake_words:
++            # Barge-in: the wake word during an answer stops it and starts a new request.
++            _LOGGER.debug("Wake word during the answer: stopping it")
++            self._continue_conversation = False
++            self.state.tts_player.stop()  # its done callback (_tts_finished) ends the pipeline
++
+         if self._pipeline_active:
+             _LOGGER.debug("Ignoring wake word - pipeline already active")
+             return
