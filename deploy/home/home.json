@@ -40,7 +40,12 @@
       "integration": "wirenboard",
       "external_id": "wb-mr6cv3_93/K2",
       "aliases": [
+        "гостиная",
         "гостинная",
+        "гостиной",
+        "гостиную",
+        "свет в гостиной",
+        "свет в гостиную",
         "свет гостинная"
       ],
       "meta_error_topic": "/devices/wb-mr6cv3_93/controls/K2/meta/error",
