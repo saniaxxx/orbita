@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint";
+option java_outer_classname = "CommonProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint;endpointpb";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TRange {
+  double Min = 1 [json_name = "min", (.NYT.column_name) = "min"];
+  double Max = 2 [json_name = "max", (.NYT.column_name) = "max"];
+  double Precision = 3 [json_name = "precision", (.NYT.column_name) = "precision"];
+}
+
+message TPositiveIntegerRange {
+  uint64 Min = 1 [json_name = "min", (.NYT.column_name) = "min"];
+  uint64 Max = 2 [json_name = "max", (.NYT.column_name) = "max"];
+}
+
+message THueAndSaturation {
+  double Hue = 1 [json_name = "hue", (.NYT.column_name) = "hue"];
+  double Saturation = 2 [json_name = "saturation", (.NYT.column_name) = "saturation"];
+}
+
+enum EUnit {
+  NoUnit = 0;
+  PercentUnit = 1;
+  TemperatureKelvinUnit = 2;
+  TemperatureCelsiusUnit = 3;
+  PressureAtmUnit = 4;
+  PressurePascalUnit = 5;
+  PressureBarUnit = 6;
+  PressureMmHgUnit = 7;
+  LuxUnit = 8;
+  PPBUnit = 9;
+  AmpereUnit = 10;
+  VoltUnit = 11;
+  WattUnit = 12;
+  PPMUnit = 13;
+  CubicMeterUnit = 14;
+  KilowattHourUnit = 15;
+  GigacalorieUnit = 16;
+  DensityUgM3Unit = 17;
+  LiterUnit = 18;
+}
+
+enum EProtocol {
+  PROTOCOL_UNKNOWN = 0;
+  PROTOCOL_ZIGBEE = 1;
+  PROTOCOL_MATTER = 2;
+  PROTOCOL_WIFI = 3;
+  PROTOCOL_IR = 4;
+  PROTOCOL_CRADLE = 5;
+  PROTOCOL_ZENOH = 6;
+}
+

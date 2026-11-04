@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotSettingChildLockCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_setting_child_lock;iotsettingchildlockpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotSettingChildLockCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotSettingChildLockCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool Locked = 1 [json_name = "locked", (.NYT.column_name) = "locked"];
+  }
+
+  message TIotSettingChildLockDirective {
+    option (.NAlice.SpeechKitName) = "iot_setting_child_lock_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotSettingChildLockDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    bool Locked = 1 [json_name = "locked", (.NYT.column_name) = "locked"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotSettingChildLockUpdateStateEventType;
+    .NAlice.TIotSettingChildLockCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotSettingChildLockCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotSettingChildLockCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

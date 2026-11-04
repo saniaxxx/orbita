@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "DeeplinkCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/deeplink;deeplinkpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDeeplinkCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = DeeplinkCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TDeeplinkCapability.TSupportedDeeplinks supported = 1 [json_name = "supported", (.NYT.column_name) = "supported"];
+  }
+
+  message TSupportedDeeplinks {
+    repeated string Prefixes = 1 [json_name = "prefixes", (.NYT.column_name) = "prefixes"];
+  }
+
+  message TOpenDeeplinkDirective {
+    option (.NAlice.SpeechKitName) = "open_deeplink_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = OpenDeeplinkDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string Uri = 2 [json_name = "uri", (.NYT.column_name) = "uri"];
+  }
+
+  message TUpdateDeeplinksPrefixesEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = UpdateDeeplinksPrefixesEventType;
+    repeated string Prefixes = 1 [json_name = "prefixes", (.NYT.column_name) = "prefixes"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TDeeplinkCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TDeeplinkCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

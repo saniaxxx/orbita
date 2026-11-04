@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "a.yandex-team.ru/smart_devices/libs/zigbee/model/proto;zigbeemodelpb";
+
+import "google/protobuf/timestamp.proto";
+
+message ZigbeeDevice {
+  message DeviceInfo {
+    map<uint32, .proto.ZigbeeDevice.Endpoint> endpoints = 6;
+    optional uint32 application_version = 1;
+    optional uint32 stack_version = 2;
+    optional uint32 hw_version = 3;
+    optional string manufacturer_name = 4;
+    optional string model_identifier = 5;
+    optional string serial_number = 7;
+  }
+
+  message Endpoint {
+    map<uint32, .proto.ZigbeeDevice.Cluster> clusters = 1;
+  }
+
+  message Attribute {
+    bytes Value = 1;
+    optional uint32 ManufacturerCode = 2;
+  }
+
+  message Cluster {
+    map<uint32, bytes> LegacyAttributes = 1 [deprecated = true];
+    map<uint32, .proto.ZigbeeDevice.Attribute> Attributes = 2;
+  }
+
+  message DeviceConfig {
+    repeated uint32 removed_endpoints = 1;
+    map<uint32, bytes> endpoint_fingerprints = 2;
+    optional uint32 PassiveTimeoutSec = 3;
+  }
+
+  .proto.ZigbeeDevice.DeviceInfo info = 1;
+  .google.protobuf.Timestamp last_seen = 2;
+  .proto.ZigbeeDevice.DeviceConfig config = 3;
+  uint32 last_seen_channel = 4;
+}
+

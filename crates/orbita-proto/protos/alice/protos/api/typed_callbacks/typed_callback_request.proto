@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.api.typed_callbacks";
+option java_outer_classname = "TypedCallbackRequestProto";
+option go_package = "a.yandex-team.ru/alice/protos/api/typed_callbacks";
+
+import "alice/protos/api/request_parts/atm.proto";
+import "alice/protos/api/request_parts/origin.proto";
+import "alice/protos/api/request_parts/request_params.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "google/protobuf/struct.proto";
+
+message TTypedCallbackRequest {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "TypedCallbackStructSerialized";
+  reserved 5;
+  message TStructSerialization {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string TypedCallbackName = 1 [json_name = "typed_callback_name", (.NYT.column_name) = "typed_callback_name"];
+    .google.protobuf.Struct Payload = 2 [json_name = "payload", (.NYT.column_name) = "payload"];
+  }
+
+  .NAlice.TAnalyticsTrackingModule Analytics = 2 [json_name = "analytics", (.NYT.column_name) = "analytics"];
+  .NAlice.TOrigin Origin = 3 [json_name = "origin", (.NYT.column_name) = "origin"];
+  .NAlice.TRequestParams RequestParams = 4 [json_name = "request_params", (.NYT.column_name) = "request_params"];
+  oneof CallbackPayload {
+    option (.NYT.variant_field_name) = "callback_payload";
+    bytes TypedCallbackSerialized = 1 [json_name = "typed_callback_serialized", (.NYT.column_name) = "typed_callback_serialized"];
+    .NAlice.TTypedCallbackRequest.TStructSerialization TypedCallbackStruct = 6 [json_name = "typed_callback_struct", deprecated = true, (.NYT.column_name) = "typed_callback_struct"];
+  }
+}
+

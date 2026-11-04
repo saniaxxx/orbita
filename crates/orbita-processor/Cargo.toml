@@ -1,0 +1,31 @@
+[package]
+name = "orbita-processor"
+version.workspace = true
+edition.workspace = true
+# The processor is a port of GPL-3.0 upstream code, so this crate is GPL too.
+license = "GPL-3.0-only"
+rust-version.workspace = true
+description = "Voice dialog processor: LLM, functions and state"
+
+[[bin]]
+name = "orbita-processor"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+handlebars.workspace = true
+orbita-core = { path = "../orbita-core" }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+orbita-mcp-search = { path = "../orbita-mcp-search" }
+tokio-tungstenite.workspace = true

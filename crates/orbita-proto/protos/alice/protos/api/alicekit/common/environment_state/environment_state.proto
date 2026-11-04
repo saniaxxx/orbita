@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.common.environment_state";
+option java_outer_classname = "EnvironmentStateProto";
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/common/environment_state;environmentstatepb";
+
+import "alice/library/client/protos/client_info.proto";
+import "alice/protos/api/alicekit/common/device_state/device_state.proto";
+import "alice/protos/endpoint/endpoint.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TEnvironmentDeviceInfo {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "DeviceState";
+  reserved 3;
+  .NAlice.TClientInfoProto Application = 1 [json_name = "application", (.NYT.column_name) = "application"];
+  repeated string SupportedFeatures = 2 [json_name = "supported_features", (.NYT.column_name) = "supported_features"];
+  oneof OneOfStates {
+    option (.NYT.variant_field_name) = "one_of_states";
+    .NAlice.NAliceApi.TDeviceState SpeakerDeviceState = 4 [json_name = "device_state", (.NYT.column_name) = "device_state"];
+  }
+}
+
+message TEnvironmentGroupInfo {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TEnvironmentGroupDeviceInfo {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    string Platform = 2 [json_name = "platform", (.NYT.column_name) = "platform"];
+    .NAlice.NAliceApi.TEnvironmentGroupInfo.EEnvironmentGroupDeviceRole Role = 3 [json_name = "role", (.NYT.column_name) = "role"];
+  }
+
+  enum EEnvironmentGroupType {
+    unknown_group = 0;
+    tandem = 1;
+    stereopair = 2;
+  }
+
+  enum EEnvironmentGroupDeviceRole {
+    unknown_role = 0;
+    leader = 1;
+    follower = 2;
+  }
+
+  .NAlice.NAliceApi.TEnvironmentGroupInfo.EEnvironmentGroupType Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+  repeated .NAlice.NAliceApi.TEnvironmentGroupInfo.TEnvironmentGroupDeviceInfo Devices = 2 [json_name = "devices", (.NYT.column_name) = "devices"];
+}
+
+message TEnvironmentState {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.NAliceApi.TEnvironmentDeviceInfo Devices = 1 [json_name = "devices", (.NYT.column_name) = "devices"];
+  repeated .NAlice.NAliceApi.TEnvironmentGroupInfo Groups = 2 [json_name = "groups", (.NYT.column_name) = "groups"];
+  repeated .NAlice.TEndpoint Endpoints = 3 [json_name = "endpoints", (.NYT.column_name) = "endpoints"];
+}
+

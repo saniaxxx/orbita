@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.deferred_tts_generate";
+option java_outer_classname = "DeferredTtsGenerate";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/deferred_tts_generate";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDeferredTtsGenerate {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  optional string RequestMessageId = 1 [json_name = "requestMessageId", (.NYT.column_name) = "requestMessageId"];
+  optional string Text = 2 [json_name = "text", (.NYT.column_name) = "text"];
+  optional bool IsLast = 3 [json_name = "is_last", (.NYT.column_name) = "is_last"];
+  optional uint64 ChunkNum = 4 [json_name = "chunk_num", (.NYT.column_name) = "chunk_num"];
+}
+

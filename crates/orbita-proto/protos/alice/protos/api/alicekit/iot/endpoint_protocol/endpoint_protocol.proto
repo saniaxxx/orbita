@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.iot.endpoint_protocol";
+option java_outer_classname = "EndpointsProtocolProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/iot/endpoint_protocol;endpointprotocolpb";
+
+import "alice/protos/endpoint/any_capability.proto";
+import "alice/protos/endpoint/endpoint.proto";
+import "google/protobuf/any.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TSubscriptionStatus {
+  enum EStatus {
+    UNKNOWN = 0;
+    OK = 1;
+    FAIL = 2;
+  }
+
+  string EndpointId = 1 [json_name = "endpoint_id", (.NYT.column_name) = "endpoint_id"];
+  string SmartHomeId = 4 [json_name = "smart_home_id", (.NYT.column_name) = "smart_home_id"];
+  .NAlice.NAliceApi.TSubscriptionStatus.EStatus Status = 2 [json_name = "status", (.NYT.column_name) = "status"];
+  string Message = 3 [json_name = "message", (.NYT.column_name) = "message"];
+}
+
+message TEndpointSubscription {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "ListenerId";
+  reserved "ExternalId";
+  reserved 3;
+  reserved 4;
+  message TCapability {
+    reserved "Id";
+    reserved "ListenerId";
+    reserved 1;
+    reserved 4;
+    .google.protobuf.Any Capability = 2 [json_name = "capability", (.NYT.column_name) = "capability"];
+    .NAlice.TAnyCapabilityHolder AnyCapability = 3 [json_name = "any_capability", (.NYT.column_name) = "any_capability"];
+  }
+
+  string EndpointId = 1 [json_name = "endpoint_id", (.NYT.column_name) = "endpoint_id"];
+  string SmartHomeId = 5 [json_name = "smart_home_id", (.NYT.column_name) = "smart_home_id"];
+  repeated .NAlice.NAliceApi.TEndpointSubscription.TCapability Capabilities = 2 [json_name = "capabilities", (.NYT.column_name) = "capabilities"];
+}
+
+message TUniversalEndpointSubscription {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "ExternalId";
+  reserved 4;
+  message TCapability {
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    .google.protobuf.Any Capability = 2 [json_name = "capability", (.NYT.column_name) = "capability"];
+    .NAlice.TAnyCapabilityHolder AnyCapability = 3 [json_name = "any_capability", (.NYT.column_name) = "any_capability"];
+    string ListenerId = 4 [json_name = "listener_id", (.NYT.column_name) = "listener_id"];
+  }
+
+  string EndpointId = 1 [json_name = "endpoint_id", (.NYT.column_name) = "endpoint_id"];
+  string ListenerId = 3 [json_name = "listener_id", (.NYT.column_name) = "listener_id"];
+  string SmartHomeId = 5 [json_name = "smart_home_id", (.NYT.column_name) = "smart_home_id"];
+  repeated .NAlice.NAliceApi.TUniversalEndpointSubscription.TCapability Capabilities = 2 [json_name = "capabilities", (.NYT.column_name) = "capabilities"];
+}
+
+message TEndpointState {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  .NAlice.TEndpoint Endpoint = 1 [json_name = "endpoint", (.NYT.column_name) = "endpoint"];
+  string SmartHomeId = 2 [json_name = "smart_home_id", (.NYT.column_name) = "smart_home_id"];
+}
+
+message TEndpointsStateChanged {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.NAliceApi.TEndpointState EndpointsState = 1 [json_name = "endpoints_state", (.NYT.column_name) = "endpoints_state"];
+}
+
+message TEndpointsRemoved {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated string EndpointIds = 1 [json_name = "endpoint_ids", (.NYT.column_name) = "endpoint_ids"];
+  repeated string SmartHomeIds = 2 [json_name = "smart_home_ids", (.NYT.column_name) = "smart_home_ids"];
+}
+
+message TSubscriptionResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TCapabilityStatus {
+    string CapabilityId = 1 [json_name = "capability_id", (.NYT.column_name) = "capability_id"];
+    .NAlice.NAliceApi.TSubscriptionResponse.EClientStatus ClientStatus = 2 [json_name = "client_status", (.NYT.column_name) = "client_status"];
+  }
+
+  message TEndpointStatus {
+    string EndpointId = 1 [json_name = "endpoint_id", (.NYT.column_name) = "endpoint_id"];
+    string SmartHomeId = 4 [json_name = "smart_home_id", (.NYT.column_name) = "smart_home_id"];
+    .NAlice.NAliceApi.TSubscriptionStatus.EStatus BackendStatus = 2 [json_name = "backend_status", (.NYT.column_name) = "backend_status"];
+    repeated .NAlice.NAliceApi.TSubscriptionResponse.TCapabilityStatus Capabilities = 3 [json_name = "capabilities", (.NYT.column_name) = "capabilities"];
+    string DirectiveHandlerEndpointId = 5 [json_name = "directive_handler_endpoint_id", (.NYT.column_name) = "directive_handler_endpoint_id"];
+  }
+
+  enum EClientStatus {
+    UNKNOWN = 0;
+    OK = 1;
+    FAIL = 2;
+  }
+
+  repeated .NAlice.NAliceApi.TSubscriptionResponse.TEndpointStatus Endpoints = 1 [json_name = "endpoints", (.NYT.column_name) = "endpoints"];
+}
+

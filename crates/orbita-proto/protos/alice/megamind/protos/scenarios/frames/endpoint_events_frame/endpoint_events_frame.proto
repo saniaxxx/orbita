@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.megamind.protos.scenarios.frames.endpoint_events_frame";
+option java_outer_classname = "FrameEndpointEvents";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/megamind/protos/scenarios/frames/endpoint_events_frame;endpointeventsframe";
+
+import "alice/protos/endpoint/events/events.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TEndpointEventsBatchSlot {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.TEndpointEventsBatch BatchValue = 1 [json_name = "batch_value", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "batch_value", (.NAlice.SlotType) = "custom.endpoint.events.batch"];
+  }
+}
+
+message TEndpointEventsBatchSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.endpoint.events.batch";
+  .NAlice.TEndpointEventsBatchSlot Batch = 1 [json_name = "batch", (.NYT.column_name) = "batch", (.NAlice.SlotName) = "batch"];
+}
+

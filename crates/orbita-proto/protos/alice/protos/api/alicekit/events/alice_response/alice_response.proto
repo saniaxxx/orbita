@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.alice_response";
+option java_outer_classname = "AliceResponseProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/alice_response";
+
+import "alice/library/censor/protos/extension.proto";
+import "alice/protos/api/alicekit/analytics/response_analytics_info/response_analytics_info.proto";
+import "alice/protos/api/alicekit/annotations/annotations.proto";
+import "alice/protos/api/alicekit/directives/directive.proto";
+import "alice/protos/api/alice_mode_info/alice_mode_info.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
+
+message TAliceResponseProto {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "analytics_info";
+  reserved "OldAnalyticsInfo";
+  reserved "Sessions";
+  reserved "ContainsSensitiveData";
+  reserved "Version";
+  reserved "ContentProperties";
+  reserved "ProactivityLogStorage";
+  reserved "CounteractivationFeatures";
+  reserved "IsDeferred";
+  reserved "EffectiveAlice2Settings";
+  reserved 4;
+  reserved 5;
+  reserved 6;
+  reserved 7;
+  reserved 8;
+  reserved 9;
+  reserved 12;
+  reserved 13;
+  reserved 14;
+  reserved 16;
+  message THeader {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "RefMessageId";
+    reserved "SessionId";
+    reserved 5;
+    reserved 6;
+    optional string RequestId = 1 [json_name = "request_id", (.NYT.column_name) = "request_id"];
+    optional string ResponseId = 2 [json_name = "response_id", (.NYT.column_name) = "response_id"];
+    optional uint32 SequenceNumber = 3 [json_name = "sequence_number", (.NYT.column_name) = "sequence_number"];
+    optional string DialogId = 4 [json_name = "dialog_id", (.NYT.column_name) = "dialog_id"];
+    optional string ParentRequestId = 7 [json_name = "parent_request_id", (.NYT.column_name) = "parent_request_id"];
+  }
+
+  message TVoiceResponse {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "Directives";
+    reserved "IsTrashPartial";
+    reserved "OutputEmotion";
+    reserved "UniproxyDirectives";
+    reserved "IsStreamingResponse";
+    reserved 3;
+    reserved 4;
+    reserved 5;
+    reserved 6;
+    reserved 7;
+    reserved 8;
+    message TOutputSpeech {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      reserved "Type";
+      reserved 1;
+      optional string Text = 2 [json_name = "text", (.NYT.column_name) = "text", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE];
+    }
+
+    .NAlice.NAliceApi.TAliceResponseProto.TVoiceResponse.TOutputSpeech OutputSpeech = 1 [json_name = "output_speech", (.NYT.column_name) = "output_speech"];
+    bool ShouldListen = 2 [json_name = "should_listen", (.NYT.column_name) = "should_listen"];
+    bool HasVoiceResponse = 9 [json_name = "has_voice_response", (.NYT.column_name) = "has_voice_response"];
+  }
+
+  message TResponse {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "Meta";
+    reserved "QualityStorage";
+    reserved "Experiments";
+    reserved "DirectivesExecutionPolicy";
+    reserved "ResponseErrorMessage";
+    reserved "ChatDialogUpdate";
+    reserved 3;
+    reserved 4;
+    reserved 5;
+    reserved 8;
+    reserved 9;
+    reserved 12;
+    message TButton {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      message TTheme {
+        option (.NYT.default_field_flags) = SERIALIZATION_YT;
+        enum EPlacement {
+          UnknownPlacement = 0;
+          NewLine = 1;
+        }
+
+        .NAlice.NAliceApi.TAliceResponseProto.TResponse.TButton.TTheme.EPlacement Placement = 2 [json_name = "placement", (.NYT.column_name) = "placement"];
+        optional string ImageUrl = 1 [json_name = "image_url", (.NYT.column_name) = "image_url"];
+      }
+
+      string Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+      repeated .NAlice.NAliceApi.TDirective Directives = 3 [json_name = "directives", (.NYT.column_name) = "directives"];
+      .NAlice.NAliceApi.TAliceResponseProto.TResponse.TButton.TTheme Theme = 5 [json_name = "theme", (.NYT.column_name) = "theme"];
+      optional string Title = 2 [json_name = "title", (.NYT.column_name) = "title", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE];
+      optional string Text = 4 [json_name = "text", (.NYT.column_name) = "text", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE];
+    }
+
+    message TCard {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      reserved "StringView";
+      reserved 9;
+      string Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+      .google.protobuf.Struct Body = 3 [json_name = "body", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "body"];
+      repeated .NAlice.NAliceApi.TAliceResponseProto.TResponse.TButton Buttons = 4 [json_name = "buttons", (.NYT.column_name) = "buttons", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE];
+      .google.protobuf.BoolValue HasBorders = 5 [json_name = "has_borders", (.NYT.column_name) = "has_borders"];
+      bool ProgressivePrinting = 7 [json_name = "progressive_printing", (.NYT.column_name) = "progressive_printing"];
+      repeated string Sources = 11 [json_name = "sources", (.NYT.column_name) = "sources"];
+      optional string Text = 2 [json_name = "text", (.NYT.column_name) = "text", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE];
+      optional string CardId = 6 [json_name = "card_id", (.NYT.column_name) = "card_id"];
+      optional string StringBody = 8 [json_name = "string_body", (.NYT.column_name) = "string_body"];
+      optional bool HideBorders = 10 [json_name = "hide_borders", (.NYT.column_name) = "hide_borders"];
+      optional bool DontAddToChatHistory = 12 [json_name = "dont_add_to_chat_history", (.NYT.column_name) = "dont_add_to_chat_history"];
+    }
+
+    message TSuggest {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      option (.NAlice.MessageAccess) = A_PRIVATE_RESPONSE;
+      repeated .NAlice.NAliceApi.TAliceResponseProto.TResponse.TButton Items = 1 [json_name = "items", (.NYT.column_name) = "items"];
+    }
+
+    message TAlice2EffectiveSettings {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      .NAlice.NApi.NAlice2Mode.TAlice2ModeInfo EffectiveSettings = 1 [json_name = "effective_settings", (.NYT.column_name) = "effective_settings"];
+      .NAlice.NApi.NAlice2Mode.TAlice2TrialState TrialState = 2 [json_name = "trial_state", (.NYT.column_name) = "trial_state"];
+    }
+
+    repeated .NAlice.NAliceApi.TAliceResponseProto.TResponse.TCard Cards = 1 [json_name = "cards", (.NYT.column_name) = "cards"];
+    repeated .NAlice.NAliceApi.TDirective Directives = 2 [json_name = "directives", (.NYT.column_name) = "directives"];
+    .NAlice.NAliceApi.TAliceResponseProto.TResponse.TSuggest Suggest = 6 [json_name = "suggest", (.NYT.column_name) = "suggest"];
+    .google.protobuf.Struct Templates = 7 [json_name = "templates", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "templates"];
+    .google.protobuf.Struct Palette = 10 [json_name = "palette", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "palette"];
+    bool IsStreaming = 11 [json_name = "is_streaming", (.NYT.column_name) = "is_streaming"];
+    .NAlice.NAliceApi.TAliceResponseProto.TResponse.TAlice2EffectiveSettings Alice2EffectiveSettings = 13 [json_name = "alice_2_effective_settings", (.NYT.column_name) = "alice_2_effective_settings"];
+    optional .NAlice.NAliceApi.TRequestAnnotation RequestAnnotation = 14 [json_name = "request_annotation", (.NYT.column_name) = "request_annotation"];
+  }
+
+  message TError {
+    optional uint32 Code = 1 [json_name = "code", (.NYT.column_name) = "code"];
+    optional string Reason = 2 [json_name = "reason", (.NYT.column_name) = "reason"];
+  }
+
+  .NAlice.NAliceApi.TAliceResponseProto.THeader Header = 1 [json_name = "header", (.NYT.column_name) = "header"];
+  .NAlice.NAliceApi.TAliceResponseProto.TVoiceResponse VoiceResponse = 2 [json_name = "voice_response", (.NYT.column_name) = "voice_response"];
+  .NAlice.NAliceApi.TAliceResponseProto.TResponse Response = 3 [json_name = "response", (.NYT.column_name) = "response"];
+  .NAlice.NAliceApi.TResponseAnalyticsInfo MegamindAnalyticsInfo = 10 [json_name = "megamind_analytics_info", (.NYT.column_name) = "megamind_analytics_info"];
+  .NAlice.NAliceApi.TAliceResponseProto.TError Error = 11 [json_name = "error", (.NYT.column_name) = "error"];
+  bool ForceServerRequest = 15 [json_name = "force_server_request", (.NYT.column_name) = "force_server_request"];
+  optional bool IsGeneratedByClient = 17 [json_name = "is_generated_by_client"];
+}
+

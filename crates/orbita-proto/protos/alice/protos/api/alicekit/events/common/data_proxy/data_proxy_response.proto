@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.common.data_proxy";
+option java_outer_classname = "DataProxyResponse";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/common/data_proxy";
+
+import "alice/protos/api/alicekit/common/environment_state/environment_state.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDataProxyResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TStreamHeaders {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    optional uint64 ContentSize = 1 [json_name = "content_size", (.NYT.column_name) = "content_size"];
+    optional string ContentType = 2 [json_name = "content_type", (.NYT.column_name) = "content_type"];
+  }
+
+  enum EStatusCode {
+    Unknown = 0;
+    Ok = 1;
+    InvalidRequest = 2;
+    UnsupportedDirective = 3;
+    KeyNotFound = 4;
+  }
+
+  optional .NAlice.NAliceApi.TDataProxyResponse.EStatusCode Status = 1 [json_name = "status", (.NYT.column_name) = "status"];
+  optional .NAlice.NAliceApi.TDataProxyResponse.TStreamHeaders Headers = 2 [json_name = "headers", (.NYT.column_name) = "headers"];
+  optional .NAlice.NAliceApi.TEnvironmentState EnvironmentState = 10 [json_name = "environment_state", (.NYT.column_name) = "environment_state"];
+}
+

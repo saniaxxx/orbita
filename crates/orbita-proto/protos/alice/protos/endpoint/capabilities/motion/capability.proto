@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "MotionCapabilityProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/motion;motionpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/endpoint/common.proto";
+import "alice/protos/endpoint/events/events.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TMotionCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = MotionCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TPositiveIntegerRange MotionDetectionIntervalRangeSec = 1 [json_name = "motion_detection_interval_range_sec", (.NYT.column_name) = "motion_detection_interval_range_sec"];
+    repeated .NAlice.TMotionCapability.TSetting SupportedSettings = 2 [json_name = "supported_settings", (.NYT.column_name) = "supported_settings"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    uint32 MotionDetectionIntervalSec = 1 [json_name = "motion_detection_interval_sec", (.NYT.column_name) = "motion_detection_interval_sec"];
+    .NAlice.TTypedCapabilityEvent LastEvent = 2 [json_name = "last_event", (.NYT.column_name) = "last_event"];
+    repeated .NAlice.TMotionCapability.TSetting Settings = 3 [json_name = "settings", (.NYT.column_name) = "settings"];
+  }
+
+  message TSetting {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    message TAdvancedDetectionParams {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      uint32 MotionEventCount = 1 [json_name = "motion_event_count"];
+      uint32 TimeWindowSec = 2 [json_name = "time_window_sec"];
+    }
+
+    oneof Setting {
+      option (.NYT.variant_field_name) = "setting";
+      uint32 MotionDetectionIntervalSec = 1 [json_name = "MotionDetectionIntervalSec"];
+      uint32 OccupiedToUnoccupiedDelaySec = 2 [json_name = "OccupiedToUnoccupiedDelaySec"];
+      .NAlice.TMotionCapability.ESensitivityLevel SensitivityLevel = 3 [json_name = "SensitivityLevel"];
+      .NAlice.TMotionCapability.EDetectionRangeLevel RangeLevel = 4 [json_name = "RangeLevel"];
+      .NAlice.TMotionCapability.TSetting.TAdvancedDetectionParams AdvancedParameters = 10 [json_name = "AdvancedParameters"];
+    }
+  }
+
+  message TSetMotionDetectionInterval {
+    option (.NAlice.SpeechKitName) = "set_motion_detection_interval";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetMotionDetectionIntervalType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    uint32 MotionDetectionIntervalSec = 1 [json_name = "motion_detection_interval_sec", (.NYT.column_name) = "motion_detection_interval_sec"];
+  }
+
+  message TSetMotionSettingDirective {
+    option (.NAlice.SpeechKitName) = "set_motion_setting";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetMotionSettingDirectiveType;
+    string Name = 1000 [json_name = "name"];
+    .NAlice.TMotionCapability.TSetting Setting = 1 [json_name = "setting", (.NYT.column_name) = "setting"];
+  }
+
+  message TMotionDetectedEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = MotionDetectedEventType;
+  }
+
+  message TMotionFinishedEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = MotionFinishedEventType;
+  }
+
+  message TNoMotionEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = NoMotionEventType;
+  }
+
+  message TCondition {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TCapability.EEventType Events = 1 [json_name = "events", (.NYT.column_name) = "events"];
+  }
+
+  enum ESensitivityLevel {
+    SensitivityUnknown = 0;
+    SensitivityLow = 1;
+    SensitivityMedium = 2;
+    SensitivityHigh = 3;
+  }
+
+  enum EDetectionRangeLevel {
+    RangeUnknown = 0;
+    RangeNear = 1;
+    RangeMedium = 2;
+    RangeFar = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TMotionCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TMotionCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

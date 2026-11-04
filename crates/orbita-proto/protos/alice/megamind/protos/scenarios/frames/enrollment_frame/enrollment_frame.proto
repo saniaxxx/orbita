@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.megamind.protos.scenarios.frames.enrollment_frame";
+option java_outer_classname = "FrameEnrollment";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/megamind/protos/scenarios/frames/enrollment_frame;enrollmentframe";
+
+import "alice/library/censor/protos/extension.proto";
+import "alice/library/yt/extensions/alice_options.proto";
+import "alice/megamind/protos/scenarios/frames/common/common.proto";
+import "alice/protos/data/scenario/iot/enrollment_status.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TEnrollmentStatusTypeSlot {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.NData.NIoT.TEnrollmentStatus EnrollmentStatus = 1 [json_name = "enrollment_status", (.NYT.column_name) = "enrollment_status", (.NAlice.SlotType) = "enrollment_status"];
+  }
+}
+
+message TEnrollmentStatusSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.multiaccount.enrollment_status";
+  .NAlice.TStringSlot Puid = 1 [json_name = "puid", (.NYT.column_name) = "puid", (.NAlice.SlotName) = "puid", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupPuid];
+  .NAlice.TEnrollmentStatusTypeSlot Status = 2 [json_name = "status", (.NYT.column_name) = "status", (.NAlice.SlotName) = "status"];
+  .NAlice.TStringSlot ActiveEnrollmentPersId = 3 [json_name = "active_enrollment_pers_id", (.NYT.column_name) = "active_enrollment_pers_id", (.NAlice.SlotName) = "active_enrollment_pers_id"];
+}
+
+message TSelectEnrollmentTypeSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.multiaccount.select_enrollment_type";
+  .NAlice.TStringSlot EncryptedCode = 1 [json_name = "encrypted_code", (.NYT.column_name) = "encrypted_code", (.NAlice.SlotName) = "encrypted_code", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupClose];
+  .NAlice.TStringSlot Signature = 2 [json_name = "signature", (.NYT.column_name) = "signature", (.NAlice.SlotName) = "signature", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupClose];
+  .NAlice.TStringSlot EncryptedSessionKey = 3 [json_name = "encrypted_session_key", (.NYT.column_name) = "encrypted_session_key", (.NAlice.SlotName) = "encrypted_session_key", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupClose];
+  .NAlice.TStringSlot Puid = 4 [json_name = "puid", (.NYT.column_name) = "puid", (.NAlice.SlotName) = "puid", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupPuid];
+  .NAlice.TTokenTypeSlot TokenType = 5 [json_name = "token_type", (.NYT.column_name) = "token_type", (.NAlice.SlotName) = "token_type"];
+  .NAlice.TStringSlot UserType = 6 [json_name = "user_type", (.NYT.column_name) = "user_type", (.NAlice.SlotName) = "user_type"];
+}
+
+message TCancelEnrollmentSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "personal_assistant.scenarios.voiceprint_enroll__cancel";
+}
+
+message TVoiceprintEnrollmentDoneSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "personal_assistant.scenarios.voiceprint_enroll.done";
+}
+
+message TGuestEnrollmentStartSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.guest.enrollment.start";
+  .NAlice.TStringSlot Puid = 1 [json_name = "puid", (.NYT.column_name) = "puid", (.NAlice.SlotName) = "puid", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupPuid];
+}
+
+message TGuestEnrollmentFinishSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.guest.enrollment.finish";
+}
+

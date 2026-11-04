@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package AgentsPlatform;
+
+option java_package = "ru.yandex.alice.protos.extensions";
+option java_outer_classname = "AgentsPlatformProto";
+option go_package = "a.yandex-team.ru/alice/protos/extensions;extensionspb";
+
+import "google/protobuf/descriptor.proto";
+
+extend .google.protobuf.MessageOptions {
+  string Artifact = 57341;
+}
+extend .google.protobuf.MessageOptions {
+  string Datasource = 57342;
+}

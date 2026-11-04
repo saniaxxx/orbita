@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.megamind.protos.user";
+option java_outer_classname = "UserOptions";
+option go_package = "a.yandex-team.ru/alice/megamind/protos/user";
+
+import "alice/library/censor/protos/extension.proto";
+import "alice/library/yt/extensions/alice_options.proto";
+import "alice/megamind/protos/common/hash_puids.proto";
+import "alice/megamind/protos/user/data.proto";
+import "alice/megamind/protos/user/tags.proto";
+import "alice/protos/api/request_parts/context_load_options.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TUserOptions {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string OAuthToken = 1 [json_name = "oauth_token", (.NYT.column_name) = "oauth_token", (.NAlice.FieldAccess) = A_PRIVATE_EVENTLOG, (.NAliceYT.PrivateGroup) = PrivateGroupClose];
+  string Puid = 2 [json_name = "puid", (.NYT.column_name) = "puid", (.NAliceYT.PrivateGroup) = PrivateGroupPuid];
+  string PersId = 3 [json_name = "pers_id", (.NYT.column_name) = "pers_id"];
+  .NAlice.THashPuids HashPuids = 4 [json_name = "hash_puids", (.NYT.column_name) = "hash_puids"];
+  .NAlice.TUserData Data = 5 [json_name = "data", (.NYT.column_name) = "data", (.NAlice.FieldAccess) = A_PRIVATE_REQUEST, (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+  .NAlice.TUserTags Tags = 6 [json_name = "tags", (.NYT.column_name) = "tags"];
+  .NAlice.TContextLoadOptions ContextLoadOptions = 7 [json_name = "context_load_options", (.NYT.column_name) = "context_load_options"];
+}
+

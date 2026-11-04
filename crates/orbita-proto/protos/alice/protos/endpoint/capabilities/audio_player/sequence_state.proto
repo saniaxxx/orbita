@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/audio_player;audioplayerpb";
+
+import "alice/protos/data/scenario/music/meta_storage.proto";
+import "google/protobuf/struct.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "alice/protos/data/music_provider/provider_meta.proto";
+import "alice/protos/data/scenario/music/music_platform_queue.proto";
+import "alice/library/yt/extensions/alice_options.proto";
+
+message TAudioPlayerSequenceState {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.TSequenceItem Queue = 1 [json_name = "queue", (.NYT.column_name) = "queue"];
+  repeated .NAlice.TSequenceItem History = 2 [json_name = "history", (.NYT.column_name) = "history"];
+  .NAlice.TSequenceItem CurrentItem = 3 [json_name = "current_item", (.NYT.column_name) = "current_item"];
+  .NAlice.NData.NMusic.TMetaStorage MetaStorage = 4 [json_name = "meta_storage", (.NYT.column_name) = "meta_storage"];
+  .NAlice.TCallbacksStorage CallbacksStorage = 5 [json_name = "callbacks_storage", (.NYT.column_name) = "callbacks_storage"];
+}
+
+message TSequenceItem {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TContainerQueue {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSequenceItem.TTrack CurrentTrack = 1 [json_name = "current_track", (.NYT.column_name) = "current_track"];
+    repeated .NAlice.TSequenceItem.TTrack TracksBefore = 2 [json_name = "tracks_before", (.NYT.column_name) = "tracks_before"];
+    repeated .NAlice.TSequenceItem.TTrack TracksAfter = 3 [json_name = "tracks_after", (.NYT.column_name) = "tracks_after"];
+  }
+
+  message TMusicContainer {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    string Uuid = 2 [json_name = "uuid", (.NYT.column_name) = "uuid", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+    .NAlice.TSequenceItem.TContainerQueue Queue = 5 [json_name = "queue", (.NYT.column_name) = "queue"];
+    bool IsShuffled = 6 [json_name = "is_shuffled", (.NYT.column_name) = "is_shuffled"];
+    .Alice.Music.RepeatType RepeatType = 7 [json_name = "repeat_type", (.NYT.column_name) = "repeat_type"];
+    .Alice.Music.LikeStatus LikeStatus = 8 [json_name = "like_status", (.NYT.column_name) = "like_status"];
+    optional uint32 StartPosition = 3 [json_name = "start_position", (.NYT.column_name) = "start_position"];
+    optional uint32 FinishPosition = 4 [json_name = "finish_position", (.NYT.column_name) = "finish_position"];
+  }
+
+  message TTrackParameters {
+    uint32 Bpm = 1 [json_name = "bpm"];
+    uint32 Hue = 2 [json_name = "hue"];
+    float Energy = 3 [json_name = "energy"];
+    uint32 UserCollectionHue = 4 [json_name = "user_collection_hue"];
+  }
+
+  message TDerivedColors {
+    string Accent = 1 [json_name = "accent"];
+    string Average = 2 [json_name = "average"];
+    string MiniPlayer = 3 [json_name = "mini_player"];
+    string WaveText = 4 [json_name = "wave_text"];
+  }
+
+  message TTrack {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    string Uuid = 2 [json_name = "uuid", (.NYT.column_name) = "uuid", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+    .Alice.Music.LikeStatus LikeStatus = 3 [json_name = "like_status", (.NYT.column_name) = "like_status"];
+    .Alice.Music.RepeatType RepeatType = 4 [json_name = "repeat_type", (.NYT.column_name) = "repeat_type"];
+    bool HasAvailableLyrics = 5 [json_name = "has_available_lyrics", (.NYT.column_name) = "has_available_lyrics"];
+    optional .NAlice.TSequenceItem.TTrackParameters TrackParameters = 6 [json_name = "track_parameters", (.NYT.column_name) = "track_parameters"];
+    optional .NAlice.TSequenceItem.TDerivedColors DerivedColors = 7 [json_name = "derived_colors", (.NYT.column_name) = "derived_colors"];
+  }
+
+  message TAlbum {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSequenceItem.TMusicContainer Container = 1 [json_name = "container", (.NYT.column_name) = "container"];
+  }
+
+  message TArtist {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSequenceItem.TMusicContainer Container = 1 [json_name = "container", (.NYT.column_name) = "container"];
+  }
+
+  message TPlaylist {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSequenceItem.TMusicContainer Container = 1 [json_name = "container", (.NYT.column_name) = "container"];
+  }
+
+  message TRecommendations {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    string Uuid = 2 [json_name = "uuid", (.NYT.column_name) = "uuid", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+    .NAlice.TSequenceItem.TContainerQueue Queue = 3 [json_name = "queue", (.NYT.column_name) = "queue"];
+    bool UseIchwill = 4 [json_name = "use_ichwill", (.NYT.column_name) = "use_ichwill"];
+  }
+
+  message TFmRadio {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  }
+
+  message TGenerative {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  }
+
+  .Alice.Music.MusicProvider MusicProvider = 101 [json_name = "music_provider", (.NYT.column_name) = "music_provider"];
+  .NAlice.NData.NMusic.TOperatingFeatures OperatingFeatures = 102 [json_name = "operating_features", (.NYT.column_name) = "operating_features"];
+  oneof SequenceItem {
+    option (.NYT.variant_field_name) = "sequence_item";
+    .NAlice.TSequenceItem.TTrack Track = 1 [json_name = "track", (.NYT.column_name) = "track"];
+    .NAlice.TSequenceItem.TAlbum Album = 2 [json_name = "album", (.NYT.column_name) = "album"];
+    .NAlice.TSequenceItem.TArtist Artist = 3 [json_name = "artist", (.NYT.column_name) = "artist"];
+    .NAlice.TSequenceItem.TPlaylist Playlist = 4 [json_name = "playlist", (.NYT.column_name) = "playlist"];
+    .NAlice.TSequenceItem.TRecommendations Recommendations = 5 [json_name = "recommendations", (.NYT.column_name) = "recommendations"];
+    .NAlice.TSequenceItem.TFmRadio FmRadio = 6 [json_name = "fm_radio", (.NYT.column_name) = "fm_radio"];
+    .NAlice.TSequenceItem.TGenerative Generative = 7 [json_name = "generative", (.NYT.column_name) = "generative"];
+  }
+}
+
+message TCallbacksStorage {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TCallbackPayloads {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .google.protobuf.Struct MusicPlay = 1 [json_name = "music_play", (.NYT.column_name) = "music_play"];
+    optional .google.protobuf.Struct Like = 2 [json_name = "like", (.NYT.column_name) = "like"];
+    optional .google.protobuf.Struct Dislike = 3 [json_name = "dislike", (.NYT.column_name) = "dislike"];
+    optional .google.protobuf.Struct UnDislike = 4 [json_name = "undislike", (.NYT.column_name) = "undislike"];
+    optional .google.protobuf.Struct UnLike = 5 [json_name = "unlike", (.NYT.column_name) = "unlike"];
+    optional .google.protobuf.Struct Next = 6 [json_name = "next", (.NYT.column_name) = "next"];
+    optional .google.protobuf.Struct Previous = 7 [json_name = "previous", (.NYT.column_name) = "previous"];
+    optional .google.protobuf.Struct RepeatOne = 8 [json_name = "repeat_one", (.NYT.column_name) = "repeat_one"];
+    optional .google.protobuf.Struct RepeatAll = 9 [json_name = "repeat_all", (.NYT.column_name) = "repeat_all"];
+    optional .google.protobuf.Struct UnRepeat = 10 [json_name = "unrepeat", (.NYT.column_name) = "unrepeat"];
+    optional .google.protobuf.Struct Shuffle = 11 [json_name = "shuffle", (.NYT.column_name) = "shuffle"];
+    optional .google.protobuf.Struct UnShuffle = 12 [json_name = "unshuffle", (.NYT.column_name) = "unshuffle"];
+    optional .google.protobuf.Struct NextStopped = 13 [json_name = "next_stopped", (.NYT.column_name) = "next_stopped"];
+    optional .google.protobuf.Struct PrevStopped = 14 [json_name = "prev_stopped", (.NYT.column_name) = "prev_stopped"];
+    optional .google.protobuf.Struct GetLyrics = 15 [json_name = "get_lyrics", (.NYT.column_name) = "get_lyrics"];
+    optional .google.protobuf.Struct EnableKaraokeMode = 16 [json_name = "enable_karaoke_mode", (.NYT.column_name) = "enable_karaoke_mode"];
+    optional .google.protobuf.Struct DisableKaraokeMode = 17 [json_name = "disable_karaoke_mode", (.NYT.column_name) = "disable_karaoke_mode"];
+  }
+
+  map<string, .NAlice.TCallbacksStorage.TCallbackPayloads> Callbacks = 1 [json_name = "callbacks", (.NYT.column_name) = "callbacks"];
+}
+

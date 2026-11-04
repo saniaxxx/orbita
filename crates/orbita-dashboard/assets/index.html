@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orbita — live pipeline</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="mark"></span>
+    <div>
+      <h1>ORBITA</h1>
+      <div class="sub">live pipeline · CT 100 · 192.168.250.102</div>
+    </div>
+  </div>
+  <div class="top-status">
+    <span class="live-dot"></span><span style="font-size:12px;color:var(--muted)">live</span>
+    <span class="pill">turn <strong id="turn-pill">#1284</strong></span>
+    <span class="pill">p50 <strong>1.63 s</strong></span>
+    <span class="pill">vram <strong>7.3 / 8.0 GB</strong></span>
+    <span class="pill" id="mode-pill">DEMO</span>
+    <div class="tabs"><span class="tab active">Live</span><span class="tab">Replay</span><span class="tab">Services</span><span class="tab">Logs</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="panel pipeline">
+    <div class="panel-head"><span>Pipeline</span><span class="hint">station → dns → proxy → quasar → asr → processor → llm / mcp → tts → station</span></div>
+    <div class="flow-wrap" id="flow-wrap">
+      <div class="legend">
+        <div class="legend-title">LIVE FLOW</div>
+        <div class="row"><span class="d"></span> запрос / стрим</div>
+        <div class="row"><span class="d return"></span> TtsSpeak / ответ</div>
+        <div class="row"><span class="d hot"></span> текущий этап</div>
+        <div class="foot">9 services · 0 errors<br>p50 1.63 s · uptime 12d</div>
+      </div>
+      <div class="flow" id="flow">
+      <svg viewBox="0 0 1000 600" preserveAspectRatio="none">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker></defs>
+        <path class="edge" id="e1" d="M 220 246 L 270 246" marker-end="url(#arrow)" />
+        <path class="edge" id="e2" d="M 460 246 L 510 246" marker-end="url(#arrow)" />
+        <path class="edge" id="e3" d="M 605 204 L 605 132" marker-end="url(#arrow)" />
+        <path class="edge" id="e4" d="M 700 246 L 750 246" marker-end="url(#arrow)" />
+        <path class="edge" id="e5" d="M 845 204 L 845 132" marker-end="url(#arrow)" />
+        <path class="edge" id="e6" d="M 845 288 L 845 372" marker-end="url(#arrow)" />
+        <path class="edge" id="e7" d="M 845 456 L 845 504" marker-end="url(#arrow)" />
+        <path class="edge" id="e8" d="M 605 288 L 605 372" marker-end="url(#arrow)" />
+        <path class="edge" id="e9" d="M 605 456 L 605 560 L 125 560 L 125 288" marker-end="url(#arrow)" />
+        <text class="edge-label" x="238" y="238">TLS</text>
+        <text class="edge-label" x="476" y="238">WSS</text>
+        <text class="edge-label" x="613" y="174">PCM</text>
+        <text class="edge-label" x="716" y="238">WS</text>
+        <text class="edge-label" x="851" y="174">SSE</text>
+        <text class="edge-label" x="851" y="338">MCP</text>
+        <text class="edge-label" x="851" y="486">HTTP</text>
+        <text class="edge-label" x="613" y="338">TTS</text>
+        <text class="edge-label" x="340" y="552">TtsSpeak + директивы</text>
+      </svg>
+
+      <div class="node station" id="n-station"><div class="title"><span class="glyph"></span>Станция<span class="port">.115</span></div><div class="meta"><span class="text">wake · Opus</span><span class="num" id="m-station">idle</span></div><div class="bar"><span></span></div></div>
+      <div class="node proxy" id="n-proxy"><div class="title"><span class="glyph"></span>nginx proxy<span class="port">443</span></div><div class="meta"><span class="text">TLS · SNI</span><span class="num" id="m-proxy">1.2 ms</span></div><div class="bar"><span></span></div></div>
+      <div class="node quasar" id="n-quasar"><div class="title"><span class="glyph"></span>quasar<span class="port">31120</span></div><div class="meta"><span class="text">uni.ws · AAPI</span><span class="num" id="m-quasar">idle</span></div><div class="bar"><span></span></div></div>
+      <div class="node asr" id="n-asr"><div class="title"><span class="glyph"></span>GigaAM ASR<span class="port">8006</span></div><div class="meta"><span class="text">stream · VAD</span><span class="num" id="m-asr">—</span></div><div class="bar"><span></span></div></div>
+      <div class="node processor" id="n-processor"><div class="title"><span class="glyph"></span>processor<span class="port">8080</span></div><div class="meta"><span class="text">LLM · functions</span><span class="num" id="m-processor">—</span></div><div class="bar"><span></span></div></div>
+      <div class="node llm" id="n-llm"><div class="title"><span class="glyph"></span>llama.cpp<span class="port">8090</span></div><div class="meta"><span class="text">Qwen3.5 9B</span><span class="num" id="m-llm">—</span></div><div class="bar"><span></span></div></div>
+      <div class="node mcp" id="n-mcp"><div class="title"><span class="glyph"></span>MCP search<span class="port">8899</span></div><div class="meta"><span class="text">search_search</span><span class="num" id="m-mcp">—</span></div><div class="bar"><span></span></div></div>
+      <div class="node searxng" id="n-searxng"><div class="title"><span class="glyph"></span>SearXNG<span class="port">8888</span></div><div class="meta"><span class="text">DDG web</span><span class="num" id="m-searxng">—</span></div><div class="bar"><span></span></div></div>
+      <div class="node tts" id="n-tts"><div class="title"><span class="glyph"></span>tts-gpu<span class="port">9160</span></div><div class="meta"><span class="text">Opus · F4</span><span class="num" id="m-tts">—</span></div><div class="bar"><span></span></div></div>
+    </div></div>
+  </section>
+
+  <aside class="panel turn">
+    <div class="panel-head"><span>Current turn</span><span class="hint" id="turn-id">#1284 · 20:07:42</span></div>
+    <div class="turn-body">
+      <div class="ask">Распознано<span class="q" id="question">какая сейчас погода в москве</span></div>
+      <div class="answer"><span class="label">ALICE</span><span id="answer">Сейчас в Москве ясно, плюс пять градусов. Ветер слабый.</span></div>
+      <div class="timeline" id="timeline">
+        <div class="stage" data-stage="asr"><span class="name">ASR</span><span class="track"><span></span></span><span class="ms">0.42 s</span></div>
+        <div class="stage" data-stage="ttft"><span class="name">TTFT</span><span class="track"><span></span></span><span class="ms">0.36 s</span></div>
+        <div class="stage" data-stage="llm"><span class="name">LLM</span><span class="track"><span></span></span><span class="ms">1.22 s</span></div>
+        <div class="stage" data-stage="mcp"><span class="name">search</span><span class="track"><span></span></span><span class="ms">0.50 s</span></div>
+        <div class="stage" data-stage="llm2"><span class="name">LLM #2</span><span class="track"><span></span></span><span class="ms">1.34 s</span></div>
+        <div class="stage" data-stage="tts"><span class="name">TTS</span><span class="track"><span></span></span><span class="ms">0.44 s</span></div>
+      </div>
+      <div class="tokens" id="tokens"><span id="token-text" style="color:#64748b">анализ запроса…</span><span class="caret"></span></div>
+      <div class="chips">
+        <span class="chip">audio <b>58 871 B</b></span>
+        <span class="chip">parts <b>2</b></span>
+        <span class="chip">tool <b>search_search</b></span>
+        <span class="chip">cache <b>miss</b></span>
+      </div>
+      <div class="wave" id="wave"></div>
+    </div>
+  </aside>
+</main>
+
+<section class="bottom">
+  <div class="panel logs" id="logs">
+    <div class="log"><span class="t">20:07:42.031</span><span class="s asr">asr</span><span>partial: «какая сейчас погода…»</span></div>
+    <div class="log"><span class="t">20:07:42.218</span><span class="s asr">asr</span><span>final: «какая сейчас погода в москве»</span></div>
+    <div class="log"><span class="t">20:07:42.250</span><span class="s q">quasar</span><span>processor /process · 1 234 B</span></div>
+    <div class="log"><span class="t">20:07:42.612</span><span class="s llm">llm</span><span>TTFT 359 ms · streaming</span></div>
+    <div class="log"><span class="t">20:07:43.104</span><span class="s mcp">mcp</span><span>search_search("погода в Москве") → 4 results</span></div>
+    <div class="log"><span class="t">20:07:44.441</span><span class="s tts">tts</span><span>chunk 1/2 · 20 004 B · 441 ms</span></div>
+    <div class="log"><span class="t">20:07:44.885</span><span class="s p">processor</span><span>partialResponse · finished=true · shouldListen=false</span></div>
+  </div>
+  <div class="panel metrics">
+    <div class="metric"><div class="k">first audio</div><div class="v" id="m-first">1.63 <small>s p50</small></div><div class="spark" id="sp1"></div></div>
+    <div class="metric"><div class="k">ttft</div><div class="v" id="m-ttft">0.36 <small>s</small></div><div class="spark" id="sp2"></div></div>
+    <div class="metric"><div class="k">vram</div><div class="v" id="m-vram">7.3 <small>/ 8.0 GB</small></div><div class="spark" id="sp3"></div></div>
+    <div class="metric"><div class="k">queue</div><div class="v" id="m-queue">0 <small>tasks</small></div><div class="spark" id="sp4"></div></div>
+  </div>
+</section>
+<script src="/app.js"></script>
+</body>
+</html>

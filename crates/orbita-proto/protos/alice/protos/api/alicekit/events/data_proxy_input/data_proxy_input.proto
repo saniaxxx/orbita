@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.data_proxy_input";
+option java_outer_classname = "DataProxyInput";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/data_proxy_input";
+
+import "alice/protos/api/alicekit/events/common/data_proxy/data_proxy_response.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDataProxyInput {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  oneof Response {
+    .NAlice.NAliceApi.TDataProxyResponse DataProxyResponse = 2 [json_name = "data_proxy_response", (.NYT.column_name) = "data_proxy_response"];
+  }
+  optional string InteractionId = 1 [json_name = "interaction_id", (.NYT.column_name) = "interaction_id"];
+}
+

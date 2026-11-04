@@ -1,0 +1,27 @@
+# SearXNG для orbita: только DuckDuckGo web, JSON API для процессора.
+# __SECRET__ заменяется на случайный ключ при установке.
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo web
+
+general:
+  instance_name: "orbita search"
+
+server:
+  secret_key: "__SECRET__"
+  bind_address: "127.0.0.1"
+  port: 8888
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json
+
+engines:
+  - name: duckduckgo web
+    disabled: false

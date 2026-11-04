@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotOtaCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_ota;iototapb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TOtaCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = OtaCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TOtaCapability.TDeviceInfo DeviceInfo = 1 [json_name = "device_info", (.NYT.column_name) = "device_info"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    uint32 SoftwareVersion = 1 [json_name = "software_version", (.NYT.column_name) = "software_version"];
+    .NAlice.TOtaCapability.EUpdateStatus UpdateStatus = 2 [json_name = "update_status", (.NYT.column_name) = "update_status"];
+    optional uint32 UpdateProgress = 3 [json_name = "update_progress", (.NYT.column_name) = "update_progress"];
+  }
+
+  message TDeviceInfo {
+    uint32 VendorId = 1 [json_name = "vendor_id", (.NYT.column_name) = "vendor_id"];
+    uint32 ProductId = 2 [json_name = "product_id", (.NYT.column_name) = "product_id"];
+    .NAlice.TOtaCapability.EProtocol Protocol = 3 [json_name = "protocol", (.NYT.column_name) = "protocol"];
+  }
+
+  message TOtaApplyDirective {
+    option (.NAlice.SpeechKitName) = "ota_apply_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = OtaApplyDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    uint32 SoftwareVersion = 1 [json_name = "software_version", (.NYT.column_name) = "software_version"];
+    string DownloadUrl = 2 [json_name = "download_url", (.NYT.column_name) = "download_url"];
+    .NAlice.TOtaCapability.EUpdateLevel UpdateLevel = 3 [json_name = "update_level", (.NYT.column_name) = "update_level"];
+  }
+
+  message TForceOtaRequestDirective {
+    option (.NAlice.SpeechKitName) = "force_ota_request_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = ForceOtaRequestDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    uint32 TimeoutSeconds = 1 [json_name = "timeout_seconds", (.NYT.column_name) = "timeout_seconds"];
+  }
+
+  message TOtaRequestEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = OtaRequestEventType;
+    .NAlice.TOtaCapability.TDeviceInfo DeviceInfo = 1 [json_name = "device_info", (.NYT.column_name) = "device_info"];
+    uint32 SoftwareVersion = 2 [json_name = "software_version", (.NYT.column_name) = "software_version"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = OtaUpdateStateEventType;
+    .NAlice.TOtaCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EProtocol {
+    Zigbee = 0;
+    Matter = 1;
+    Cradle = 2;
+    Device = 3;
+  }
+
+  enum EUpdateStatus {
+    UPDATE_STATUS_UNKNOWN = 0;
+    UPDATE_STATUS_DOWNLOADING = 1;
+    UPDATE_STATUS_DOWNLOADED = 2;
+    UPDATE_STATUS_TRANSFERING = 3;
+    UPDATE_STATUS_APPLYING = 4;
+    UPDATE_STATUS_SUCCESS = 5;
+    UPDATE_STATUS_FAILURE = 6;
+    UPDATE_STATUS_INTERRUPTED = 7;
+  }
+
+  enum EUpdateLevel {
+    UPDATE_LEVEL_UNKNOWN = 0;
+    UPDATE_LEVEL_NORMAL = 1;
+    UPDATE_LEVEL_CRIT = 2;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TOtaCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TOtaCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

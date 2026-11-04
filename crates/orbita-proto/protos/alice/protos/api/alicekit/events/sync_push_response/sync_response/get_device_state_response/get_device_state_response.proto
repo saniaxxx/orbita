@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.sync_push_response.sync_response.get_device_state_response";
+option java_outer_classname = "GetDeviceStateResponse";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/sync_push_response/sync_response/get_device_state_response";
+
+import "alice/protos/api/alicekit/common/device_state/device_state.proto";
+import "alice/protos/api/alicekit/common/environment_state/environment_state.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TGetDeviceStateResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  .NAlice.NAliceApi.TDeviceState DeviceState = 1 [json_name = "device_state", (.NYT.column_name) = "device_state"];
+  .NAlice.NAliceApi.TEnvironmentState EnvironmentState = 2 [json_name = "environment_state", (.NYT.column_name) = "environment_state"];
+}
+

@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.api.typed_callbacks.device_control_panel";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/typed_callbacks/device_control_panel";
+
+import "alice/protos/data/device_control_panel/time_interval.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "google/protobuf/duration.proto";
+
+message TDeviceControlPanelBlockData {
+  reserved "BlockType";
+  reserved 1;
+  message TManualBlock {
+  }
+
+  message TScheduledBlock {
+    .NAlice.TTimeInterval TimeInterval = 1 [json_name = "time_interval"];
+  }
+
+  message TDailyLimitBlock {
+    .google.protobuf.Duration DailyLimit = 1 [json_name = "daily_limit"];
+  }
+
+  .NAlice.EDeviceBlockType DeviceBlockType = 5 [json_name = "device_block_type"];
+  oneof Reason {
+    .NAlice.TDeviceControlPanelBlockData.TManualBlock ManualBlock = 2 [json_name = "manual_block"];
+    .NAlice.TDeviceControlPanelBlockData.TScheduledBlock ScheduledBlock = 3 [json_name = "scheduled_block"];
+    .NAlice.TDeviceControlPanelBlockData.TDailyLimitBlock DailyLimitBlock = 4 [json_name = "daily_limit_block"];
+  }
+}
+
+message TDeviceControlPanelBlockActivatedTypedCallback {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.MMTypedCallbackName) = "DeviceControlPanelBlockActivatedTypedCallback";
+  .NAlice.TDeviceControlPanelBlockData Data = 1 [json_name = "data"];
+}
+
+message TDeviceControlPanelBlockDeactivatedTypedCallback {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.MMTypedCallbackName) = "DeviceControlPanelBlockDeactivatedTypedCallback";
+  .NAlice.TDeviceControlPanelBlockData Data = 1 [json_name = "data"];
+}
+
+message TDeviceControlPanelBlockWarningTypedCallback {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.MMTypedCallbackName) = "DeviceControlPanelBlockWarningTypedCallback";
+  .NAlice.TDeviceControlPanelBlockData Data = 1 [json_name = "data"];
+  .google.protobuf.Duration TimeLeft = 2 [json_name = "time_left"];
+}
+
+message TDeviceControlPanelBlockCommandSpotterTypedCallback {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.MMTypedCallbackName) = "DeviceControlPanelBlockCommandSpotterTypedCallback";
+}
+
+message TDeviceControlPanelBlockButtonTypedCallback {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.MMTypedCallbackName) = "DeviceControlPanelBlockButtonTypedCallback";
+}
+
+enum EDeviceBlockType {
+  EDBT_UNKNOWN = 0;
+  EDBT_TOTAL_BLOCK = 1;
+  EDBT_VIDEO_BLOCK = 2;
+}
+

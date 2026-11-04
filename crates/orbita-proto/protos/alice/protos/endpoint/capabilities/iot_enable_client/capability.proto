@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotEnableClientCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_enable_client;iotenableclientpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotEnableClientCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotEnableClientCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool Enable = 1 [json_name = "enable", (.NYT.column_name) = "enable"];
+  }
+
+  message TSetIotEnableClientDirective {
+    option (.NAlice.SpeechKitName) = "set_iot_enable_client_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetIotEnableClientDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    bool Enable = 1 [json_name = "enable", (.NYT.column_name) = "enable"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotEnableClientUpdateStateEventType;
+    .NAlice.TIotEnableClientCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotEnableClientCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotEnableClientCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

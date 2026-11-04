@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.arcadia.yandex_io.protos.capabilities";
+option java_outer_classname = "DeviceStateCapability";
+option go_package = "a.yandex-team.ru/yandex_io/protos/capabilities;yandexiocapabilitiespb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/megamind/protos/common/experiments/experiments.proto";
+import "alice/megamind/protos/guest/enrollment_headers/enrollment_headers.proto";
+import "alice/protos/api/alicekit/common/device_state/device_state.proto";
+import "alice/protos/api/alicekit/common/environment_state/environment_state.proto";
+import "alice/protos/api/alicekit/events/alice_request/alice_request.proto";
+import "alice/protos/api/biometry/options.proto";
+import "alice/protos/endpoint/capability.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDeviceStateCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = DeviceStateCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "NetworkState";
+    reserved 2;
+    reserved 7;
+    reserved 10;
+    reserved 11;
+    reserved 9;
+    message TInternetConnectionStatus {
+      message TWifi {
+        enum EStatus {
+          NOT_CONNECTED = 0;
+          CONNECTING = 1;
+          CONNECTED_NO_INTERNET = 2;
+          CONNECTED = 3;
+          NOT_CHOSEN = 4;
+        }
+
+        .NAlice.TDeviceStateCapability.TState.TInternetConnectionStatus.TWifi.EStatus Status = 1;
+      }
+
+      message TEthernet {
+      }
+
+      bool InternetReachable = 3;
+      oneof Interface {
+        .NAlice.TDeviceStateCapability.TState.TInternetConnectionStatus.TWifi Wifi = 1;
+        .NAlice.TDeviceStateCapability.TState.TInternetConnectionStatus.TEthernet Ethernet = 2;
+      }
+      optional bool ControlReachable = 4;
+    }
+
+    message TConfigurationStatus {
+      enum EStatus {
+        UNDEFINED = 0;
+        CONFIGURING = 1;
+        CONFIGURED = 2;
+      }
+
+      .NAlice.TDeviceStateCapability.TState.TConfigurationStatus.EStatus Status = 1;
+    }
+
+    message TUpdateStatus {
+      enum EStatus {
+        UNDEFINED = 0;
+        HAS_CRITICAL = 1;
+        NO_CRITICAL = 2;
+      }
+
+      .NAlice.TDeviceStateCapability.TState.TUpdateStatus.EStatus Status = 1;
+    }
+
+    message TScreensaverState {
+      bool IsOn = 1;
+    }
+
+    .NAlice.NAliceApi.TDeviceState DeviceState = 1 [json_name = "device_state", (.NYT.column_name) = "device_state"];
+    repeated string SupportedFeatures = 3 [json_name = "supported_features", (.NYT.column_name) = "supported_features"];
+    repeated string UnsupportedFeatures = 4 [json_name = "unsupported_features", (.NYT.column_name) = "unsupported_features"];
+    .NAlice.TExperimentsProto Experiments = 5 [json_name = "experiments", (.NYT.column_name) = "experiments"];
+    .NAlice.TEnrollmentHeaders EnrollmentHeaders = 6 [json_name = "enrollment_headers", (.NYT.column_name) = "enrollment_headers"];
+    .NAlice.NAliceApi.TEnvironmentDeviceInfo EnvironmentDeviceInfo = 8 [json_name = "environment_device_info", (.NYT.column_name) = "environment_device_info"];
+    .NAlice.TAliceRequestProto.TRequest.TAdditionalOptions.TBassOptions BassOptions = 12 [json_name = "bass_options", (.NYT.column_name) = "bass_options"];
+    repeated .NAlice.TAliceRequestProto.TRequest.TAdditionalOptions.TPermission Permissions = 13 [json_name = "permissions", (.NYT.column_name) = "permissions"];
+    .NAlice.TOndeviceBiometryOptions BiometryOptions = 14 [json_name = "biometry_options", (.NYT.column_name) = "biometry_options"];
+    .NAlice.TDeviceStateCapability.TState.TInternetConnectionStatus InternetConnectionStatus = 15 [json_name = "internet_connection_status", (.NYT.column_name) = "internet_connection_status"];
+    .NAlice.TDeviceStateCapability.TState.TConfigurationStatus ConfigurationStatus = 16 [json_name = "configuration_status", (.NYT.column_name) = "configuration_status"];
+    .NAlice.TDeviceStateCapability.TState.TUpdateStatus UpdateStatus = 17 [json_name = "update_status", (.NYT.column_name) = "update_status"];
+    .NAlice.TDeviceStateCapability.TState.TScreensaverState ScreensaverState = 18 [json_name = "screensaver_state", (.NYT.column_name) = "screensaver_state"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TDeviceStateCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TDeviceStateCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

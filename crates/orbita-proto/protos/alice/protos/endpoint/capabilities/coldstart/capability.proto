@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "ColdstartCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/coldstart;coldstartpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TColdstartCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = ColdstartCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool SupportColdstartRecommendations = 1 [json_name = "support_coldstart_recommendations", (.NYT.column_name) = "support_coldstart_recommendations"];
+  }
+
+  message TOpenColdstartRecommendationsDirective {
+    option (.NAlice.SpeechKitName) = "open_coldstart_recommendations_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = OpenColdstartRecommendationsDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TColdstartCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TColdstartCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

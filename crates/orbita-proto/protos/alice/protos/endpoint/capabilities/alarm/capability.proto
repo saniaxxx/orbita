@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "AlarmProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/alarm;alarmpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/data/scenario/alarm/alarm.proto";
+import "alice/protos/data/scenario/timer/timer.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TAlarmCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = AlarmCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.NData.TDefaultSound AvailableDefaultSounds = 1 [json_name = "available_default_sounds", (.NYT.column_name) = "available_default_sounds"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.NData.TAlarm Alarms = 1 [json_name = "alarms", (.NYT.column_name) = "alarms"];
+    repeated .NAlice.NData.TTimerDescription Timers = 2 [json_name = "timers", (.NYT.column_name) = "timers"];
+    .NAlice.NData.TAlarmSoundSettings AlarmSoundSettings = 3 [json_name = "alarm_sound_settings", (.NYT.column_name) = "alarm_sound_settings"];
+    bool MediaCurrentlyPlaying = 4 [json_name = "media_currently_playing", (.NYT.column_name) = "media_currently_playing"];
+  }
+
+  message TAlarmSoundSettingsUpdateDirective {
+    option (.NAlice.SpeechKitName) = "alarm_sound_settings_update_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmSoundSettingsUpdateDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.NData.TAlarmSoundSettings Settings = 2 [json_name = "settings", (.NYT.column_name) = "settings"];
+  }
+
+  message TAlarmUpdateSoundLevelDirective {
+    option (.NAlice.SpeechKitName) = "alarm_update_sound_level_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmUpdateSoundLevelDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.NData.TAlarmSoundSettings.TSoundLevelInfo SoundLevelInfo = 2 [json_name = "sound_level_info", (.NYT.column_name) = "sound_level_info"];
+  }
+
+  message TAlarmUpdateDirective {
+    option (.NAlice.SpeechKitName) = "alarm_update_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmUpdateDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    repeated .NAlice.NData.TAlarm Alarms = 2 [json_name = "alarms", (.NYT.column_name) = "alarms"];
+  }
+
+  message TAlarmSnoozeDirective {
+    option (.NAlice.SpeechKitName) = "alarm_snooze_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmSnoozeDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string AlarmId = 2 [json_name = "alarm_id", (.NYT.column_name) = "alarm_id"];
+    uint32 DurationSec = 3 [json_name = "duration_sec", (.NYT.column_name) = "duration_sec"];
+  }
+
+  message TAlarmStopDirective {
+    option (.NAlice.SpeechKitName) = "alarm_stop_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmStopDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    optional bool StopMedia = 2 [json_name = "stop_media", (.NYT.column_name) = "stop_media"];
+  }
+
+  message TAlarmAddDirective {
+    option (.NAlice.SpeechKitName) = "alarm_add_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmAddDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.NData.TAlarm Alarm = 2 [json_name = "alarm", (.NYT.column_name) = "alarm"];
+  }
+
+  message TAlarmCancelDirective {
+    option (.NAlice.SpeechKitName) = "alarm_cancel_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AlarmCancelDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string AlarmId = 2 [json_name = "alarm_id", (.NYT.column_name) = "alarm_id"];
+  }
+
+  message TTimerSetDirective {
+    option (.NAlice.SpeechKitName) = "timer_set_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TimerSetDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.NData.TTimerDescription Timer = 2 [json_name = "timer", (.NYT.column_name) = "timer"];
+  }
+
+  message TTimerCancelDirective {
+    option (.NAlice.SpeechKitName) = "timer_cancel_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TimerCancelDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string TimerId = 2 [json_name = "timer_id", (.NYT.column_name) = "timer_id"];
+  }
+
+  message TTimerPauseDirective {
+    option (.NAlice.SpeechKitName) = "timer_pause_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TimerPauseDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string TimerId = 2 [json_name = "timer_id", (.NYT.column_name) = "timer_id"];
+  }
+
+  message TTimerResumeDirective {
+    option (.NAlice.SpeechKitName) = "timer_resume_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TimerResumeDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string TimerId = 2 [json_name = "timer_id", (.NYT.column_name) = "timer_id"];
+  }
+
+  message TTimerStopDirective {
+    option (.NAlice.SpeechKitName) = "timer_stop_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TimerStopDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    string TimerId = 2 [json_name = "timer_id", (.NYT.column_name) = "timer_id"];
+  }
+
+  message TAlarmApproachingEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = AlarmApproachingEventType;
+    string AlarmId = 1 [json_name = "alarm_id", (.NYT.column_name) = "alarm_id"];
+  }
+
+  message TAlarmFiredEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = AlarmFiredEventType;
+    string AlarmId = 1 [json_name = "alarm_id", (.NYT.column_name) = "alarm_id"];
+  }
+
+  message TCondition {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TCapability.EEventType Events = 1 [json_name = "events", (.NYT.column_name) = "events"];
+    string AlarmId = 2 [json_name = "alarm_id", (.NYT.column_name) = "alarm_id"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TAlarmCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TAlarmCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

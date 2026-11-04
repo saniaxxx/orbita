@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.library.client.protos";
+option java_outer_classname = "ClientAnalyticsInfoProto";
+option go_package = "a.yandex-team.ru/alice/library/client/protos";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TClientAnalyticsInfoProto {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  optional string ClientUrl = 1 [json_name = "client_url", (.NYT.column_name) = "client_url"];
+}
+

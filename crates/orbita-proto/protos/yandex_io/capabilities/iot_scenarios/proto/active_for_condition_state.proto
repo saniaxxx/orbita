@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package quasar.proto;
+
+import "alice/protos/data/iot/scenario.proto";
+
+message TActiveForConditionState {
+  uint64 SubconditionTriggerTimeSec = 1 [json_name = "subcondition_trigger_time_sec"];
+  .NAlice.NIot.TLocalScenarioCondition TriggeredCondition = 2 [json_name = "triggered_condition"];
+}
+

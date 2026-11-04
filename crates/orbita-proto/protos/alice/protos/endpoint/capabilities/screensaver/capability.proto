@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "ScreensaverCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/screensaver;screensaverpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/api/voice_control/voice_control.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "alice/protos/div/div_extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "alice/protos/div/div2card.proto";
+
+message TScreensaverCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = ScreensaverCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TScreensaverCapability.EResolution Resolution = 1 [json_name = "resolution", (.NYT.column_name) = "resolution"];
+    .NAlice.TDivExtensions SupportedDivExtensions = 2 [json_name = "supported_div_extensions", (.NYT.column_name) = "supported_div_extensions"];
+    bool IsLottieAnimatedClockSupported = 3 [json_name = "is_lottie_animated_clock_supported", (.NYT.column_name) = "is_lottie_animated_clock_supported"];
+    bool IsMusicWidgetSupported = 4 [json_name = "is_music_widget_supported", (.NYT.column_name) = "is_music_widget_supported"];
+    bool IsRequestingLightweightThemes = 5 [json_name = "is_requesting_lightweight_themes", (.NYT.column_name) = "is_requesting_lightweight_themes"];
+  }
+
+  message TScreensaverContentMeta {
+    string Description = 1 [json_name = "description", (.NYT.column_name) = "description"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "Resolution";
+    reserved 2;
+    enum EScreensaverState {
+      UnknownState = 0;
+      Inactive = 1;
+      VideoScreensaver = 2;
+    }
+
+    enum EScreensaverStatus {
+      UnknownStatus = 0;
+      Shown = 1;
+      NotShown = 2;
+    }
+
+    .NAlice.TScreensaverCapability.TState.EScreensaverState ScreensaverState = 1 [json_name = "screensaver_state", (.NYT.column_name) = "screensaver_state"];
+    .NAlice.TScreensaverCapability.TState.EScreensaverStatus ScreensaverStatus = 3 [json_name = "screensaver_status", (.NYT.column_name) = "screensaver_status"];
+    .NAlice.TScreensaverCapability.TScreensaverContentMeta CurrentScreensaverMeta = 4 [json_name = "current_screensaver_meta", (.NYT.column_name) = "current_screensaver_meta"];
+  }
+
+  message TOpenScreensaverDirective {
+    option (.NAlice.SpeechKitName) = "open_screensaver";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = OpenScreensaverDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TLoadScreensaversDirective {
+    option (.NAlice.SpeechKitName) = "load_screensavers";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = LoadScreensaversDirectiveType;
+    message TMediaItem {
+      string Url = 1 [json_name = "url", (.NYT.column_name) = "url"];
+      .NAlice.TScreensaverCapability.EMediaType MediaType = 2 [json_name = "media_type", (.NYT.column_name) = "media_type"];
+      string Id = 3 [json_name = "id", (.NYT.column_name) = "id"];
+      bool HasSound = 4 [json_name = "has_sound", (.NYT.column_name) = "has_sound"];
+    }
+
+    message TInformers {
+      bool ShowTime = 1 [json_name = "show_time", (.NYT.column_name) = "show_time"];
+      bool ShowDate = 2 [json_name = "show_date", (.NYT.column_name) = "show_date"];
+      bool ShowWeather = 3 [json_name = "show_weather", (.NYT.column_name) = "show_weather"];
+      .NAlice.TScreensaverCapability.TLoadScreensaversDirective.EWidgetPosition Position = 4 [json_name = "position", (.NYT.column_name) = "position"];
+    }
+
+    message TWidget {
+      string Id = 1 [json_name = "widget_id", (.NYT.column_name) = "widget_id"];
+      string Type = 2 [json_name = "widget_type", (.NYT.column_name) = "widget_type"];
+      string ImageUrl = 5 [json_name = "image_url", (.NYT.column_name) = "image_url"];
+    }
+
+    message TScreensaverItem {
+      .NAlice.TDiv2Card Overlay = 1 [json_name = "overlay", (.NYT.column_name) = "overlay"];
+      .NAlice.TScreensaverCapability.TLoadScreensaversDirective.TMediaItem MediaItem = 2 [json_name = "media_item", (.NYT.column_name) = "media_item"];
+      repeated .NAlice.TVoiceControl VoiceControls = 3 [json_name = "voice_controls", (.NYT.column_name) = "voice_controls"];
+      .NAlice.TScreensaverCapability.TScreensaverContentMeta ContentMeta = 4 [json_name = "content_meta", (.NYT.column_name) = "content_meta"];
+      uint64 ShowDurationSeconds = 5 [json_name = "show_duration_seconds", (.NYT.column_name) = "show_duration_seconds"];
+      repeated string Suggests = 6 [json_name = "suggests", (.NYT.column_name) = "suggests"];
+      .NAlice.TScreensaverCapability.TLoadScreensaversDirective.TInformers Informers = 7 [json_name = "informers", (.NYT.column_name) = "informers"];
+      repeated .NAlice.TScreensaverCapability.TLoadScreensaversDirective.TWidget Widgets = 8 [json_name = "widgets", (.NYT.column_name) = "widgets"];
+    }
+
+    enum EWidgetPosition {
+      UnknownWidgetPosition = 0;
+      StartTop = 1;
+      CenterBottom = 2;
+    }
+
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+    repeated .NAlice.TScreensaverCapability.TLoadScreensaversDirective.TScreensaverItem ScreensaverItems = 2 [json_name = "screensaver_items", (.NYT.column_name) = "screensaver_items"];
+    .NAlice.TScreensaverCapability.EResolution Resolution = 3 [json_name = "resolution", (.NYT.column_name) = "resolution"];
+    int32 NewHighlight = 4 [json_name = "new_highlight", (.NYT.column_name) = "new_highlight"];
+    bool HasDynamicContent = 5 [json_name = "has_dynamic_content", (.NYT.column_name) = "has_dynamic_content"];
+  }
+
+  message TCloseScreensaverDirective {
+    option (.NAlice.SpeechKitName) = "close_screensaver";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = CloseScreensaverDirectiveType;
+    string Name = 1 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  enum EResolution {
+    UnknownRes = 0;
+    HD = 1;
+    FHD = 2;
+    QHD = 3;
+    UHD = 4;
+  }
+
+  enum EMediaType {
+    UnknownType = 0;
+    Image = 1;
+    Video = 2;
+    LottieAnimatedClockArchive = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TScreensaverCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TScreensaverCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

@@ -1,0 +1,18 @@
+[Unit]
+Description=orbita-mcp-search: MCP bridge to SearXNG (Rust)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=HOST=127.0.0.1
+Environment=PORT=8899
+Environment=SEARX_URL=http://192.168.250.102:8888
+ExecStart=/opt/orbita/target/release/orbita-mcp-search
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

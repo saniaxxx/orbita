@@ -1,0 +1,230 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.analytics.scenario_analytics_info";
+option java_outer_classname = "ScenarioAnalyticsInfoProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/analytics/scenario_analytics_info";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TTimePoint {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string Time = 1 [json_name = "time", (.NYT.column_name) = "time"];
+}
+
+message TTimeInterval {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string StartTime = 1 [json_name = "start_time", (.NYT.column_name) = "start_time"];
+  string EndTime = 2 [json_name = "end_time", (.NYT.column_name) = "end_time"];
+}
+
+message TTimeInfo {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved 56788;
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.NAliceApi.TTimePoint TimePoint = 1 [json_name = "time_point", (.NYT.column_name) = "time_point"];
+    .NAlice.NAliceApi.TTimeInterval TimeInterval = 2 [json_name = "time_interval", (.NYT.column_name) = "time_interval"];
+  }
+}
+
+message TReaction {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "QueryParameters";
+  reserved "ScenarioParameters";
+  reserved "PushParameters";
+  reserved 3;
+  reserved 4;
+  reserved 5;
+  message TActionParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string CapabilityType = 1 [json_name = "capability_type", (.NYT.column_name) = "capability_type"];
+    string CapabilityInstance = 2 [json_name = "capability_instance", (.NYT.column_name) = "capability_instance"];
+    string CapabilityUnit = 3 [json_name = "capability_unit", (.NYT.column_name) = "capability_unit"];
+    string RelativityType = 4 [json_name = "relativity_type", (.NYT.column_name) = "relativity_type"];
+    string CapabilityValue = 5 [json_name = "capability_value", (.NYT.column_name) = "capability_value"];
+    repeated string Devices = 6 [json_name = "devices", (.NYT.column_name) = "devices"];
+    .NAlice.NAliceApi.TTimeInfo TimeInfo = 7 [json_name = "time_info", (.NYT.column_name) = "time_info"];
+  }
+
+  string Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+  oneof Parameters {
+    option (.NYT.variant_field_name) = "parameters";
+    .NAlice.NAliceApi.TReaction.TActionParameters ActionParameters = 2 [json_name = "action_parameters", (.NYT.column_name) = "action_parameters"];
+  }
+}
+
+message TReactions {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.NAliceApi.TReaction Reactions = 1 [json_name = "reactions", (.NYT.column_name) = "reactions"];
+}
+
+message TScenarioAnalyticsInfo {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  reserved "Actions";
+  reserved "Events";
+  reserved "TunnellerRawResponses";
+  reserved "ScenarioTimings";
+  reserved "NlgRenderHistoryRecords";
+  reserved "ScenarioClassificationInfo";
+  reserved "AliceParserPatch";
+  reserved "WebSearchAnalyticsInfo";
+  reserved "VisulizationInfo";
+  reserved 1;
+  reserved 3;
+  reserved 6;
+  reserved 4;
+  reserved 7;
+  reserved 8;
+  reserved 10;
+  reserved 11;
+  reserved 20;
+  reserved 21;
+  reserved 22;
+  reserved 23;
+  message TObject {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "ReduceTitleInfo";
+    reserved "ProviderSearchChoosedItems";
+    reserved "Name";
+    reserved "HumanReadable";
+    reserved "Empty";
+    reserved "Skill";
+    reserved "SkillUser";
+    reserved "SkillSession";
+    reserved "VideoDescriptionScreen";
+    reserved "VideoSearchGalleryScreen";
+    reserved "VideoSeasonGalleryScreen";
+    reserved "GCResponseInfo";
+    reserved "VinsGcMeta";
+    reserved "VinsErrorMeta";
+    reserved "FirstTrack";
+    reserved "SkillRecommendations";
+    reserved "MovieAkinatorResponseInfo";
+    reserved "Recipe";
+    reserved "RecipeStep";
+    reserved "RecipeSession";
+    reserved "AudioStream";
+    reserved "Hypotheses";
+    reserved "SelectedHypotheses";
+    reserved "CurrentlyPlayingVideo";
+    reserved "TaxiOrder";
+    reserved "NewsProvider";
+    reserved "SearchFact";
+    reserved "MatchedContacts";
+    reserved "PhoneBook";
+    reserved "BestPricesRequest";
+    reserved "GoodsRequest";
+    reserved "ContentId";
+    reserved "DummyResponse";
+    reserved "SkillSuggestedExamples";
+    reserved "SearchGenericInfo";
+    reserved "TelegramUser";
+    reserved "StageInfo";
+    reserved "ContentInfo";
+    reserved "PoiOperation";
+    reserved "NamePronounciation";
+    reserved "ProviderOrderInfo";
+    reserved "MapsCallSearchResults";
+    reserved "ProviderSearchChoosedItem";
+    reserved "EntertainmentContext";
+    reserved "EntertainmentItem";
+    reserved "NannyDailyRoutineTaleContext";
+    reserved "NannyDailyRoutineContentItem";
+    reserved "NannyDailyRoutineNatureSoundsContext";
+    reserved "MusicPlatformContentId";
+    reserved "MusicPlatformSearchResults";
+    reserved "MusicPlatformSubscriptions";
+    reserved "CalendarService";
+    reserved "NannyDailyRoutineTimeToSleepChoiceContext";
+    reserved "MultiQuerySequencerResults";
+    reserved "ChildEducationPushContext";
+    reserved "NannyDailyRoutinePushContext";
+    reserved "SearchTemplateClassifierInfo";
+    reserved "AliceResponseFeedback";
+    reserved "DrawPictureGenerationInfo";
+    reserved "ChildTimetableItem";
+    reserved "NannyDailyRoutineAlarmContext";
+    reserved "OrderRenderedProviderInfo";
+    reserved "RemindersObject";
+    reserved "AlarmObject";
+    reserved 5;
+    reserved 56788;
+    reserved 40;
+    reserved 44;
+    reserved 2;
+    reserved 3;
+    reserved 4;
+    reserved 6;
+    reserved 7;
+    reserved 8;
+    reserved 9;
+    reserved 10;
+    reserved 11;
+    reserved 12;
+    reserved 13;
+    reserved 14;
+    reserved 15;
+    reserved 16;
+    reserved 17;
+    reserved 18;
+    reserved 19;
+    reserved 20;
+    reserved 21;
+    reserved 22;
+    reserved 23;
+    reserved 24;
+    reserved 25;
+    reserved 26;
+    reserved 27;
+    reserved 28;
+    reserved 29;
+    reserved 30;
+    reserved 31;
+    reserved 33;
+    reserved 34;
+    reserved 35;
+    reserved 36;
+    reserved 37;
+    reserved 38;
+    reserved 39;
+    reserved 41;
+    reserved 42;
+    reserved 43;
+    reserved 45;
+    reserved 46;
+    reserved 47;
+    reserved 48;
+    reserved 49;
+    reserved 50;
+    reserved 51;
+    reserved 52;
+    reserved 53;
+    reserved 54;
+    reserved 55;
+    reserved 56;
+    reserved 57;
+    reserved 58;
+    reserved 59;
+    reserved 60;
+    reserved 61;
+    reserved 62;
+    reserved 63;
+    reserved 64;
+    reserved 65;
+    reserved 66;
+    reserved 67;
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    oneof Payload {
+      option (.NYT.variant_field_name) = "payload";
+      .NAlice.NAliceApi.TReactions IotReactions = 32 [json_name = "iot_reactions", (.NYT.column_name) = "iot_reactions"];
+    }
+  }
+
+  string Intent = 2 [json_name = "intent", (.NYT.column_name) = "intent"];
+  repeated .NAlice.NAliceApi.TScenarioAnalyticsInfo.TObject Objects = 5 [json_name = "objects", (.NYT.column_name) = "objects"];
+  string ProductScenarioName = 9 [json_name = "product_scenario_name", (.NYT.column_name) = "product_scenario_name"];
+}
+

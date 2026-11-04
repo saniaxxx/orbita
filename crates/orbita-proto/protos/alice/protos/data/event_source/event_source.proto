@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.data.eventsource";
+option java_outer_classname = "EventSource";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/data/event_source";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TEventSource {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  enum EEvent {
+    UnknownEvent = 0;
+    Spotter = 1;
+    Directive = 2;
+    AutoDirective = 3;
+    AutoListen = 4;
+    Click = 5;
+    DoubleClick = 6;
+    Remote = 7;
+    Keyboard = 8;
+    Camera = 9;
+    Gesture = 10;
+    External = 11;
+    Push = 12;
+    Scheduler = 13;
+    Application = 14;
+    ZoomIn = 15;
+    ZoomOut = 16;
+    ScrollVertical = 17;
+    ScrollHorizontal = 18;
+    HandleDivAction = 19;
+    Bluetooth = 20;
+    RcuHold = 21;
+    RcuClick = 22;
+    LazyAutoListen = 23;
+    BotQuery = 24;
+    BotInlineQuery = 25;
+  }
+
+  enum ESource {
+    UnknownSource = 0;
+    UserInterface = 1;
+    Hardware = 2;
+    Software = 3;
+    TWS = 4;
+    OverlayedUI = 5 [deprecated = true];
+  }
+
+  enum EType {
+    UnknownType = 0;
+    Text = 1;
+    Voice = 2;
+    Music = 3;
+    VoiceprintMatch = 4;
+    Recognize = 5;
+    Vocalize = 6;
+    DataInput = 7;
+    SpeechInput = 8;
+  }
+
+  .NAlice.TEventSource.EEvent Event = 1 [json_name = "event", (.NYT.column_name) = "event"];
+  .NAlice.TEventSource.ESource Source = 2 [json_name = "source", (.NYT.column_name) = "source"];
+  .NAlice.TEventSource.EType Type = 3 [json_name = "type", (.NYT.column_name) = "type"];
+  optional string Id = 4 [json_name = "id", (.NYT.column_name) = "id"];
+  optional string EndpointId = 5 [json_name = "endpoint_id", (.NYT.column_name) = "endpoint_id"];
+  optional string SourceName = 6 [json_name = "source_name", (.NYT.column_name) = "source_name"];
+}
+

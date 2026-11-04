@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package NAlice.NAliceApi;
+
+option java_package = "ru.yandex.alice.protos.api.alicekit.events.synchronize_state_response";
+option java_outer_classname = "SynchronizeStateResponse";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/api/alicekit/events/synchronize_state_response";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TSynchronizeStateResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  message TConnectionData {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    enum EGeo {
+      unknown = 0;
+      sas = 1;
+      vla = 2;
+      klg = 3;
+    }
+
+    enum ECtype {
+      undefined = 0;
+      trunk = 1;
+      testing = 2;
+      hamster = 3;
+      beta = 4;
+      prestable = 5;
+      production = 6;
+    }
+
+    .NAlice.NAliceApi.TSynchronizeStateResponse.TConnectionData.EGeo Geo = 1 [json_name = "geo", (.NYT.column_name) = "geo"];
+    .NAlice.NAliceApi.TSynchronizeStateResponse.TConnectionData.ECtype Ctype = 2 [json_name = "ctype", (.NYT.column_name) = "ctype"];
+  }
+
+  string SessionId = 1 [json_name = "SessionId", (.NYT.column_name) = "SessionId"];
+  .NAlice.NAliceApi.TSynchronizeStateResponse.TConnectionData ConnectionData = 2 [json_name = "connection_data", (.NYT.column_name) = "connection_data"];
+}
+

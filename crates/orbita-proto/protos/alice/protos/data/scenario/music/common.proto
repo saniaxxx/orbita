@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package NAlice.NData.NMusic;
+
+option java_package = "ru.yandex.alice.protos.data.scenario.music";
+option go_package = "a.yandex-team.ru/alice/protos/data/scenario/music";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDurationRestrictions {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  uint32 MinS = 1 [json_name = "min_s", (.NYT.column_name) = "min_s"];
+  uint32 MaxS = 2 [json_name = "max_s", (.NYT.column_name) = "max_s"];
+}
+

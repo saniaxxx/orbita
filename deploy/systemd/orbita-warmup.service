@@ -1,0 +1,13 @@
+[Unit]
+Description=Warm up orbita-agent and llama.cpp after a restart
+After=network-online.target orbita-agent.service
+Wants=network-online.target orbita-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/orbita/target/release/orbita-cli warmup
+TimeoutStartSec=180
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

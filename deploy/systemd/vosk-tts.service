@@ -1,0 +1,25 @@
+[Unit]
+Description=orbita-tts: Vosk TTS ru 0.10 on ONNX Runtime (CUDA, OpenAI-compatible)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=ENGINE=vosk
+Environment=HOST=0.0.0.0
+Environment=PORT=9170
+Environment=VOSK_MODEL_DIR=/opt/orbita/models/vosk-tts-ru-0.10
+Environment=VOSK_VOICE=nizhegorodova_aleksandra
+Environment=PROVIDERS=cuda
+Environment=TTS_THREADS=4
+Environment=GAIN_DB=0
+Environment=HOME=/root
+Environment=ORT_DYLIB_PATH=/opt/tts-gpu/.venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.so.1.23.2
+Environment=LD_LIBRARY_PATH=/opt/tts-gpu/.venv/lib/python3.13/site-packages/onnxruntime/capi:/opt/gigaam/lib/python3.13/site-packages/nvidia/cuda_runtime/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/cublas/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/cudnn/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/cufft/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/curand/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/cusolver/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/cusparse/lib:/opt/gigaam/lib/python3.13/site-packages/nvidia/nvjitlink/lib
+ExecStart=/opt/orbita/bin/orbita-tts
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

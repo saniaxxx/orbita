@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.megamind.protos.scenarios.frames.iot_frame";
+option java_outer_classname = "FrameIot";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/megamind/protos/scenarios/frames/iot_frame;iotframe";
+
+import "alice/megamind/protos/scenarios/frames/common/common.proto";
+import "alice/protos/endpoint/capabilities/iot_discovery/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotNetworksSlot {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.TIotDiscoveryCapability.TNetworks NetworksValue = 1 [json_name = "networks_value", (.NYT.column_name) = "networks_value", (.NAlice.SlotType) = "custom.iot.networks"];
+  }
+}
+
+message TRestoreIotNetworksTypeSlot {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  enum EValue {
+    RestoreZigbeeNetworks = 0;
+    SyncEndpoints = 1;
+    RestoreMatterNetworks = 2;
+    RestoreThreadNetworks = 3;
+    RestoreZenohNetworks = 4;
+  }
+
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.TRestoreIotNetworksTypeSlot.EValue RestoreTypeValue = 1 [json_name = "restore_type_value", (.NYT.column_name) = "restore_type_value", (.NAlice.SlotType) = "restore_type_value"];
+  }
+}
+
+message TRestoreIotNetworksSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.iot.discovery.restore_networks";
+  repeated .NAlice.TRestoreIotNetworksTypeSlot RestoreIotNetworkTypes = 1 [json_name = "restore_iot_network_types", (.NYT.column_name) = "restore_iot_network_types", (.NAlice.SlotName) = "restore_iot_network_types"];
+}
+
+message TSaveIotNetworksSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.iot.discovery.save_networks";
+  .NAlice.TIotNetworksSlot Networks = 1 [json_name = "networks", (.NYT.column_name) = "networks", (.NAlice.SlotName) = "networks"];
+}
+
+message TIoTDiscoveryStartSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.iot.voice_discovery.start.v2";
+  .NAlice.TStringSlot SSID = 1 [json_name = "ssid", (.NYT.column_name) = "ssid", (.NAlice.SlotName) = "ssid"];
+  .NAlice.TStringSlot Password = 2 [json_name = "password", (.NYT.column_name) = "password", (.NAlice.SlotName) = "password"];
+  .NAlice.TStringSlot DeviceType = 3 [json_name = "device_type", (.NYT.column_name) = "device_type", (.NAlice.SlotName) = "device_type"];
+  .NAlice.TUInt32Slot TimeoutMs = 4 [json_name = "timeout_ms", (.NYT.column_name) = "timeout_ms", (.NAlice.SlotName) = "timeout_ms"];
+}
+
+message TIoTDiscoveryFailureSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.iot.voice_discovery.failure.v2";
+  .NAlice.TUInt32Slot TimeoutMs = 1 [json_name = "timeout_ms", (.NYT.column_name) = "timeout_ms", (.NAlice.SlotName) = "timeout_ms"];
+  .NAlice.TStringSlot Reason = 2 [json_name = "reason", (.NYT.column_name) = "reason", (.NAlice.SlotName) = "reason"];
+  .NAlice.TStringSlot DeviceType = 3 [json_name = "device_type", (.NYT.column_name) = "device_type", (.NAlice.SlotName) = "device_type"];
+}
+
+message TStartIotTuyaBroadcastSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.iot.discovery.start_tuya_broadcast";
+  .NAlice.TStringSlot SSID = 1 [json_name = "ssid", (.NYT.column_name) = "ssid", (.NAlice.SlotName) = "ssid"];
+  .NAlice.TStringSlot Password = 2 [json_name = "password", (.NYT.column_name) = "password", (.NAlice.SlotName) = "password"];
+}
+

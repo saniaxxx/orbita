@@ -1,0 +1,452 @@
+//! Agent request handling: reminders, device fast paths and LLM dialogue.
+//!
+//! The agent core is channel-independent: it returns an [`Outcome`] with text
+//! and semantic actions. A channel adapter turns actions into its protocol
+//! (directives for the station).
+
+use std::sync::Arc;
+
+use chrono::{DateTime, FixedOffset, Utc};
+use serde_json::Value;
+use tracing::warn;
+
+use crate::action::{
+    Action, Outcome, SessionContext, SessionKey, VolumeChange, normalize_function_name,
+};
+use crate::db::Store;
+use crate::fastpath;
+use crate::llm::{LlmClient, Message};
+use crate::reminder;
+
+pub struct Agent {
+    store: Arc<Store>,
+    llm: Arc<dyn LlmClient>,
+    system_prompt: String,
+    history_limit: usize,
+}
+
+impl Agent {
+    pub fn new(
+        store: Arc<Store>,
+        llm: Arc<dyn LlmClient>,
+        system_prompt: impl Into<String>,
+        history_limit: usize,
+    ) -> Self {
+        Self {
+            store,
+            llm,
+            system_prompt: system_prompt.into(),
+            history_limit,
+        }
+    }
+
+    pub fn store(&self) -> &Arc<Store> {
+        &self.store
+    }
+
+    pub async fn process(
+        &self,
+        text: &str,
+        session: &SessionKey,
+        context: &SessionContext,
+    ) -> Result<Outcome, String> {
+        self.process_at(text, session, Utc::now(), context).await
+    }
+
+    pub async fn process_at(
+        &self,
+        text: &str,
+        session: &SessionKey,
+        now: DateTime<Utc>,
+        context: &SessionContext,
+    ) -> Result<Outcome, String> {
+        let text = text.trim();
+        if text.is_empty() {
+            // ASR produced nothing (cold start, noise): answer politely instead
+            // of failing the dialog.
+            return Ok(Outcome::text("Я вас не расслышала. Повторите, пожалуйста."));
+        }
+
+        if let Some(parsed) = reminder::parse(text, now) {
+            self.store.insert_task(
+                "reminder",
+                &parsed.text,
+                Some(&session.principal),
+                parsed.due_at,
+            )?;
+            self.store.audit(
+                "reminder.created",
+                &format!(
+                    "session={} due={}",
+                    session.history_id(),
+                    parsed.due_at.to_rfc3339()
+                ),
+            )?;
+            return Ok(Outcome::text(parsed.reply));
+        }
+
+        // Deterministic device commands: no LLM, immediate reaction.
+        if let Some(action) = fastpath::action(text)
+            && action_supported(&action, context)
+        {
+            return Ok(Outcome::text(action_reply(&action)).with_action(action));
+        }
+
+        let history_id = session.history_id();
+        let mut messages = vec![Message::system(self.system_prompt_with_time(now, context))];
+        for message in self.store.messages(&history_id, self.history_limit)? {
+            messages.push(Message {
+                role: message.role,
+                content: message.content,
+            });
+        }
+        messages.push(Message::user(text));
+
+        let raw = self.llm.complete(&messages).await?;
+        let (reply, actions) = parse_reply(&raw, context);
+        let reply = reply.trim();
+        if reply.is_empty() && actions.is_empty() {
+            return Err("LLM returned an empty answer".to_owned());
+        }
+
+        self.store.append_message(&history_id, "user", text)?;
+        if !reply.is_empty() {
+            self.store.append_message(&history_id, "assistant", reply)?;
+        }
+        self.store.audit(
+            "dialogue",
+            &format!("session={history_id} actions={}", actions.len()),
+        )?;
+        Ok(Outcome {
+            text: reply.to_owned(),
+            actions,
+        })
+    }
+
+    fn system_prompt_with_time(&self, now: DateTime<Utc>, context: &SessionContext) -> String {
+        let offset = FixedOffset::east_opt(3 * 60 * 60).expect("Moscow offset");
+        let moscow = now.with_timezone(&offset);
+        let mut prompt = format!(
+            "{}\nСейчас {} (Europe/Moscow).",
+            self.system_prompt,
+            moscow.format("%d.%m.%Y %H:%M")
+        );
+        if !context.functions.is_empty() {
+            prompt.push('\n');
+            prompt.push_str(&crate::action::function_prompt(context));
+        }
+        prompt
+    }
+}
+
+/// Whether the channel offered the function this action needs.
+fn action_supported(action: &Action, context: &SessionContext) -> bool {
+    match action {
+        Action::SetVolume(VolumeChange::Louder) => context.has("set_sound_volume_louder"),
+        Action::SetVolume(VolumeChange::Quieter) => context.has("set_sound_volume_quieter"),
+        Action::SetVolume(VolumeChange::Set(_)) => context.has("set_sound_volume"),
+        Action::SetTimer { .. } => context.has("timer_set"),
+        Action::Directive { name, .. } => context.has(normalize_function_name(name)),
+    }
+}
+
+fn action_reply(action: &Action) -> String {
+    match action {
+        Action::SetVolume(VolumeChange::Louder) => "Делаю громче.".to_owned(),
+        Action::SetVolume(VolumeChange::Quieter) => "Делаю тише.".to_owned(),
+        Action::SetVolume(VolumeChange::Set(level)) => format!("Ставлю громкость {level}."),
+        Action::SetTimer { seconds, .. } => {
+            format!("Таймер {}.", crate::russian::duration_phrase(*seconds))
+        }
+        Action::Directive { .. } => String::new(),
+    }
+}
+
+/// Take the answer text and function calls out of the model reply.
+///
+/// llama.cpp runs with a JSON grammar (D-6), so the reply is always a JSON
+/// object; a plain-text reply is passed through for tests and other backends.
+fn parse_reply(raw: &str, context: &SessionContext) -> (String, Vec<Action>) {
+    let trimmed = raw.trim();
+    let Some(object) = serde_json::from_str::<Value>(trimmed)
+        .ok()
+        .and_then(|value| value.as_object().cloned())
+    else {
+        return (trimmed.to_owned(), Vec::new());
+    };
+
+    // The model may answer with our `{"text": ...}` shape or with an
+    // OpenAI-style `{"role": "assistant", "content": ...}` object.
+    let text = ["text", "reply", "content", "answer", "message", "response"]
+        .iter()
+        .find_map(|key| object.get(*key).and_then(Value::as_str))
+        .unwrap_or("");
+
+    let mut actions = Vec::new();
+    if let Some(calls) = object.get("function_calls").and_then(Value::as_array) {
+        for call in calls {
+            let Some(name) = call.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            let arguments = call.get("arguments").cloned().unwrap_or(Value::Null);
+            if context.has(normalize_function_name(name)) {
+                actions.push(Action::Directive {
+                    name: name.to_owned(),
+                    arguments,
+                });
+            } else {
+                warn!(%name, "model called a function the channel did not offer; dropping it");
+            }
+        }
+    }
+
+    if text.is_empty() && actions.is_empty() && !object.contains_key("function_calls") {
+        // Older prompt shape: a single string value in the object.
+        let strings: Vec<&str> = object.values().filter_map(Value::as_str).collect();
+        if strings.len() == 1 {
+            return (strings[0].to_owned(), Vec::new());
+        }
+        // Unknown object shape: keep the raw reply rather than an empty answer.
+        return (trimmed.to_owned(), Vec::new());
+    }
+    (text.to_owned(), actions)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use serde_json::json;
+
+    use super::*;
+    use crate::action::FunctionSpec;
+    use crate::llm::Message;
+
+    struct FakeLlm {
+        calls: AtomicUsize,
+        seen: Mutex<Vec<Message>>,
+        reply: String,
+    }
+
+    impl FakeLlm {
+        fn new(reply: &str) -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                seen: Mutex::new(Vec::new()),
+                reply: reply.to_owned(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LlmClient for FakeLlm {
+        async fn complete(&self, messages: &[Message]) -> Result<String, String> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.seen.lock().unwrap().extend_from_slice(messages);
+            Ok(self.reply.clone())
+        }
+    }
+
+    fn now() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-11-03T09:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn agent(reply: &str) -> (Agent, Arc<Store>, Arc<FakeLlm>) {
+        let store = Arc::new(Store::open(":memory:").unwrap());
+        let llm = Arc::new(FakeLlm::new(reply));
+        (
+            Agent::new(Arc::clone(&store), llm.clone(), "system", 10),
+            store,
+            llm,
+        )
+    }
+
+    fn station_context() -> SessionContext {
+        SessionContext {
+            functions: [
+                "set_sound_volume_louder",
+                "set_sound_volume_quieter",
+                "set_sound_volume",
+                "timer_set",
+            ]
+            .iter()
+            .map(|name| FunctionSpec {
+                name: format!("smart_speaker_{name}"),
+                description: String::new(),
+                arguments: json!({}),
+            })
+            .collect(),
+        }
+    }
+
+    fn key() -> SessionKey {
+        SessionKey::station("duid")
+    }
+
+    #[tokio::test]
+    async fn reminder_bypasses_llm_and_stores_task() {
+        let (agent, store, llm) = agent("не должен вызываться");
+        let outcome = agent
+            .process_at(
+                "напомни через 20 минут выключить духовку",
+                &key(),
+                now(),
+                &SessionContext::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome.text, "Напомню через 20 минут. выключить духовку.");
+        assert!(outcome.actions.is_empty());
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 0);
+        let due = store
+            .due_tasks(now() + chrono::Duration::minutes(21), 10)
+            .unwrap();
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].device_id.as_deref(), Some("duid"));
+    }
+
+    #[tokio::test]
+    async fn volume_fast_path_skips_llm() {
+        let (agent, _, llm) = agent("не должен вызываться");
+        let outcome = agent
+            .process_at("громче", &key(), now(), &station_context())
+            .await
+            .unwrap();
+        assert_eq!(
+            outcome.actions,
+            vec![Action::SetVolume(VolumeChange::Louder)]
+        );
+        assert_eq!(outcome.text, "Делаю громче.");
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn timer_fast_path_returns_native_action() {
+        let (agent, _, llm) = agent("не должен вызываться");
+        let outcome = agent
+            .process_at(
+                "поставь таймер на 5 минут",
+                &key(),
+                now(),
+                &station_context(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            outcome.actions,
+            vec![Action::SetTimer {
+                seconds: 300,
+                label: None
+            }]
+        );
+        assert_eq!(outcome.text, "Таймер на 5 минут.");
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn fast_path_does_not_fire_without_the_function() {
+        let (agent, _, llm) = agent("{\"text\": \"Привет.\"}");
+        let outcome = agent
+            .process_at("громче", &key(), now(), &SessionContext::default())
+            .await
+            .unwrap();
+        assert_eq!(outcome.text, "Привет.");
+        assert!(outcome.actions.is_empty());
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn dialogue_is_persisted_and_replayed() {
+        let (agent, store, llm) = agent("{\"text\": \"ответ\"}");
+        let first = agent
+            .process_at("привет", &key(), now(), &SessionContext::default())
+            .await
+            .unwrap();
+        assert_eq!(first.text, "ответ");
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 1);
+
+        let second = agent
+            .process_at("а теперь?", &key(), now(), &SessionContext::default())
+            .await
+            .unwrap();
+        assert_eq!(second.text, "ответ");
+        assert_eq!(llm.calls.load(Ordering::SeqCst), 2);
+        let messages = store.messages("duid", 10).unwrap();
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0].content, "привет");
+        assert_eq!(messages[1].content, "ответ");
+        let seen = llm.seen.lock().unwrap();
+        assert!(seen.iter().any(|message| message.content == "привет"));
+        assert!(seen.iter().any(|message| message.content == "а теперь?"));
+    }
+
+    #[tokio::test]
+    async fn empty_llm_answer_is_an_error() {
+        let (agent, _, _) = agent("   ");
+        assert!(
+            agent
+                .process_at("привет", &key(), now(), &SessionContext::default())
+                .await
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn unwraps_llm_json() {
+        let context = SessionContext::default();
+        assert_eq!(
+            parse_reply("{\"reply\": \"Привет.\"}", &context).0,
+            "Привет."
+        );
+        assert_eq!(
+            parse_reply(
+                "{\"role\": \"assistant\", \"content\": \"Привет!\"}",
+                &context
+            )
+            .0,
+            "Привет!"
+        );
+        assert_eq!(parse_reply("{\"text\": \"Да.\"}", &context).0, "Да.");
+        assert_eq!(parse_reply("{\"a\": \"одно\"}", &context).0, "одно");
+        assert_eq!(parse_reply("просто текст", &context).0, "просто текст");
+        assert_eq!(parse_reply("{\"a\": 1}", &context).0, "{\"a\": 1}");
+    }
+
+    #[test]
+    fn keeps_only_offered_function_calls() {
+        let context = station_context();
+        let (text, actions) = parse_reply(
+            &json!({
+                "text": "Ставлю таймер.",
+                "function_calls": [
+                    {"name": "timer_set", "arguments": {"durationSeconds": 60}},
+                    {"name": "alarm_add", "arguments": {"time": "07:00"}}
+                ]
+            })
+            .to_string(),
+            &context,
+        );
+        assert_eq!(text, "Ставлю таймер.");
+        assert_eq!(
+            actions,
+            vec![Action::Directive {
+                name: "timer_set".to_owned(),
+                arguments: json!({"durationSeconds": 60}),
+            }]
+        );
+    }
+
+    #[test]
+    fn system_prompt_lists_the_functions() {
+        let (agent, _, _) = agent("x");
+        let prompt = agent.system_prompt_with_time(now(), &station_context());
+        assert!(prompt.contains("set_sound_volume_louder"));
+        assert!(prompt.contains("function_calls"));
+    }
+}

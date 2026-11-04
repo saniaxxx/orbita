@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotMotorControlCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_motor_control;iotmotorcontrolpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotMotorControlCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotMotorControlCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TIotMotorControlCapability.EState State = 1 [json_name = "state", (.NYT.column_name) = "state"];
+  }
+
+  message TMotorControlOpenDirective {
+    option (.NAlice.SpeechKitName) = "motor_control_open_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = MotorControlOpenDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TMotorControlCloseDirective {
+    option (.NAlice.SpeechKitName) = "motor_control_close_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = MotorControlCloseDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TMotorControlStopDirective {
+    option (.NAlice.SpeechKitName) = "motor_control_stop_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = MotorControlStopDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TMotorControlToggleDirective {
+    option (.NAlice.SpeechKitName) = "motor_control_toggle_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = MotorControlToggleDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotMotorControlUpdateStateEventType;
+    .NAlice.TIotMotorControlCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EState {
+    UNKNOWN = 0;
+    OPENED = 1;
+    INTERMEDIATE = 2;
+    CLOSED = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotMotorControlCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotMotorControlCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

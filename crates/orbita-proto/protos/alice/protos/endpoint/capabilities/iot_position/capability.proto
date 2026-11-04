@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "TIotPositionCapabilityProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_position;iotpositionpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotPositionCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotPositionCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TPosition {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "XAccelerationMg";
+    reserved "YAccelerationMg";
+    reserved "ZAccelerationMg";
+    reserved 1;
+    reserved 2;
+    reserved 3;
+    message TSpatialVector {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      sint32 X = 1 [json_name = "x", (.NYT.column_name) = "x"];
+      sint32 Y = 2 [json_name = "y", (.NYT.column_name) = "y"];
+      sint32 Z = 3 [json_name = "z", (.NYT.column_name) = "z"];
+    }
+
+    .NAlice.TIotPositionCapability.TPosition.TSpatialVector SpatialVector = 4 [json_name = "spatial_vector", (.NYT.column_name) = "spatial_vector"];
+    bool IsCorrect = 5 [json_name = "is_correct", (.NYT.column_name) = "is_correct"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "Correct";
+    reserved 2;
+    .NAlice.TIotPositionCapability.TPosition Position = 1 [json_name = "position", (.NYT.column_name) = "position"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotPositionUpdateStateEventType;
+    .NAlice.TIotPositionCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  message TIotPositionChangedEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotPositionChangedEventType;
+    bool PositionChanged = 1 [json_name = "position_changed", (.NYT.column_name) = "position_changed"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotPositionCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotPositionCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

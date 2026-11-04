@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "ColorMusicCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/color_music;colormusicpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TColorMusicCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = ColorMusicCapabilityType;
+  message AnimationSetting {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TAnimationType {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TColorMusicCapability.EAnimationType Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+    string LastAnimationId = 2 [json_name = "last_animation_id", (.NYT.column_name) = "last_animation_id"];
+    repeated .NAlice.TColorMusicCapability.AnimationSetting CommonSettings = 3 [json_name = "common_settings", (.NYT.column_name) = "common_settings"];
+  }
+
+  message TAnimation {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string AnimationId = 1 [json_name = "animation_id", (.NYT.column_name) = "animation_id"];
+    repeated .NAlice.TColorMusicCapability.AnimationSetting Settings = 2 [json_name = "settings", (.NYT.column_name) = "settings"];
+    .NAlice.TColorMusicCapability.EAnimationType Type = 3 [json_name = "type", (.NYT.column_name) = "type"];
+  }
+
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool Enabled = 1 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+    string CurrentAnimation = 2 [json_name = "current_animation", (.NYT.column_name) = "current_animation"];
+    repeated .NAlice.TColorMusicCapability.TAnimation Animations = 3 [json_name = "animations", (.NYT.column_name) = "animations"];
+    .NAlice.TColorMusicCapability.EAnimationType CurrentAnimationType = 4 [json_name = "current_animation_type", (.NYT.column_name) = "current_animation_type"];
+    repeated .NAlice.TColorMusicCapability.TAnimationType AnimationsTypeParameters = 5 [json_name = "animations_type_parameters", (.NYT.column_name) = "animations_type_parameters"];
+  }
+
+  message TSetEnableColorMusicDirective {
+    option (.NAlice.SpeechKitName) = "set_enable_color_music_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetEnableColorMusicDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    bool Enable = 1 [json_name = "enable", (.NYT.column_name) = "enable"];
+  }
+
+  message TSetAnimationColorMusicDirective {
+    option (.NAlice.SpeechKitName) = "set_animation_color_music_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetAnimationColorMusicDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    string AnimationId = 1 [json_name = "animation_id", (.NYT.column_name) = "animation_id"];
+    bool AutoEnable = 2 [json_name = "autoenable", (.NYT.column_name) = "autoenable"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = ColorMusicUpdateStateEventType;
+    .NAlice.TColorMusicCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EAnimationType {
+    Unknown = 0;
+    Color = 1;
+    Scene = 2;
+    ColorMusic = 3;
+    Stroboscope = 4;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TColorMusicCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TColorMusicCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

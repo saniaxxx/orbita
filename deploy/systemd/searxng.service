@@ -1,0 +1,18 @@
+[Unit]
+Description=SearXNG metasearch (DuckDuckGo web, JSON API on 127.0.0.1:8888)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=searxng
+Group=searxng
+WorkingDirectory=/opt/searxng
+Environment=SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+ExecStart=/opt/searxng/.venv/bin/granian searx.webapp:app --interface wsgi --host 127.0.0.1 --port 8888
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

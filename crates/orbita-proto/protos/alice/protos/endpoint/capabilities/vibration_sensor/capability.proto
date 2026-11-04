@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "VibrationSensorProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/vibration_sensor;vibrationpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/endpoint/events/events.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TVibrationSensorCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = VibrationSensorCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TTypedCapabilityEvent LastEvent = 1 [json_name = "last_event", (.NYT.column_name) = "last_event"];
+  }
+
+  message TVibrationSensorVibrationEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = VibrationSensorVibrationEventType;
+  }
+
+  message TVibrationSensorTiltEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = VibrationSensorTiltEventType;
+  }
+
+  message TVibrationSensorFallEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = VibrationSensorFallEventType;
+  }
+
+  message TCondition {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TCapability.EEventType Events = 1 [json_name = "events", (.NYT.column_name) = "events"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TVibrationSensorCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TVibrationSensorCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package NAlice.NData;
+
+option java_package = "ru.yandex.alice.protos.data";
+option go_package = "a.yandex-team.ru/alice/protos/data";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TNewsProvider {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string NewsSource = 1 [json_name = "news_source", (.NYT.column_name) = "news_source"];
+  string Rubric = 2 [json_name = "rubric", (.NYT.column_name) = "rubric"];
+}
+

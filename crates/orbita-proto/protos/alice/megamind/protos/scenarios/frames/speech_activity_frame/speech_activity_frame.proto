@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.megamind.protos.scenarios.frames.speech_activity_frame";
+option java_outer_classname = "FrameSpeechActivity";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/megamind/protos/scenarios/frames/speech_activity_frame;speechactivityframe";
+
+import "alice/megamind/protos/scenarios/frames/common/common.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TSpeechActivityTypeSlot {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  enum EValue {
+    Unknown = 0;
+    Started = 1;
+    Finished = 2;
+  }
+
+  oneof Value {
+    option (.NYT.variant_field_name) = "value";
+    .NAlice.TSpeechActivityTypeSlot.EValue SpeechActivityTypeValue = 1 [json_name = "speech_activity_type_value", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "speech_activity_type_value", (.NAlice.SlotType) = "custom.speech_activity_type"];
+  }
+}
+
+message TVoiceActivityDetectorSemanticFrame {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.SemanticFrameName) = "alice.smart_speaker.voice_activity_detector";
+  .NAlice.TSpeechActivityTypeSlot SpeechActivityType = 1 [json_name = "speech_activity_type", (.NYT.column_name) = "speech_activity_type", (.NAlice.SlotName) = "speech_activity_type"];
+  .NAlice.TInt64Slot TimestampSeconds = 2 [json_name = "timestamp_seconds", (.NYT.column_name) = "timestamp_seconds", (.NAlice.SlotName) = "timestamp_seconds"];
+}
+

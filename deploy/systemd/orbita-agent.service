@@ -1,0 +1,32 @@
+[Unit]
+Description=orbita-agent: voice dialogue, sessions and reminders
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=HOST=0.0.0.0
+Environment=PORT=8080
+Environment=OPENAI_BASE_URL=http://192.168.250.102:8090/v1
+Environment=OPENAI_MODEL=qwen3.5-9b-q4km
+Environment=AGENT_DB=/var/lib/orbita-agent/agent.db
+Environment=QUASAR_API_URL=http://127.0.0.1:31121
+# The TypeScript quasar on the stand does not send metadata.internal.deviceId.
+Environment=DEFAULT_DUID=LG0000000000002793950000ab593116
+Environment=HISTORY_LIMIT=12
+Environment=SCHEDULER_INTERVAL_MS=1000
+# OPENAI_API_KEY lives in this file, not in the repository.
+EnvironmentFile=-/etc/orbita/secrets.env
+ExecStart=/opt/orbita/target/release/orbita-agent
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+StateDirectory=orbita-agent
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/orbita-agent
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+._*
+.DS_Store
+*.log
+/target/
+.tmp/
+.venv*/
+__pycache__/
+*.pyc
+tests/fixtures/private/
+tests/recordings/
+deploy/env/*.local
+.env
+.env.*
+!.env.example

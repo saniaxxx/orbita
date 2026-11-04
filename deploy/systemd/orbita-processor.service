@@ -1,0 +1,25 @@
+[Unit]
+Description=orbita-processor: dialogue processor (Rust port of upstream processor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=HOST=0.0.0.0
+Environment=PORT=8080
+Environment=OPENAI_BASE_URL=http://192.168.250.102:8090/v1
+Environment=OPENAI_MODEL=qwen3.5-9b-q4km
+Environment=PROMPT_TEMPLATE_PATH=/opt/orbita/deploy/processor/prompt.handlebars
+Environment=FUNCTIONS_PROMPT_TEMPLATE_PATH=/opt/orbita/deploy/processor/prompt-functions.handlebars
+Environment=STATE_PROMPT_TEMPLATE_PATH=/opt/orbita/deploy/processor/prompt-state.handlebars
+Environment=PROCESSOR_MCP_SERVER_URLS=search#http://127.0.0.1:8899/mcp
+# OPENAI_API_KEY (llama.cpp key) lives here, not in the repository.
+EnvironmentFile=-/etc/orbita/secrets.env
+ExecStart=/opt/orbita/target/release/orbita-processor
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

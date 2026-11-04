@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "VoiceZoneProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/voice_zone;voice_zonepb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TVoiceZoneCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = VoiceZoneCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    enum EZoneTopology1 {
+      Left = 0;
+      Right = 1;
+    }
+
+    enum EZoneTopology2 {
+      FrontLeft = 0;
+      FrontRight = 1;
+      RearLeft = 2;
+      RearRight = 3;
+    }
+
+    .NAlice.TVoiceZoneCapability.TSettings Settings = 3 [json_name = "settings", (.NYT.column_name) = "settings"];
+    oneof Zone {
+      option (.NYT.variant_field_name) = "zone";
+      .NAlice.TVoiceZoneCapability.TState.EZoneTopology1 ZoneTopology1 = 1 [json_name = "zone_topology_1", (.NYT.column_name) = "zone_topology_1"];
+      .NAlice.TVoiceZoneCapability.TState.EZoneTopology2 ZoneTopology2 = 2 [json_name = "zone_topology_2", (.NYT.column_name) = "zone_topology_2"];
+    }
+  }
+
+  message TZone {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    oneof Zone {
+      option (.NYT.variant_field_name) = "zone";
+      .NAlice.TVoiceZoneCapability.TState.EZoneTopology1 ZoneTopology1 = 1 [json_name = "zone_topology_1", (.NYT.column_name) = "zone_topology_1"];
+      .NAlice.TVoiceZoneCapability.TState.EZoneTopology2 ZoneTopology2 = 2 [json_name = "zone_topology_2", (.NYT.column_name) = "zone_topology_2"];
+    }
+  }
+
+  message TZones {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TVoiceZoneCapability.TZone Zone = 1 [json_name = "zone", (.NYT.column_name) = "zone"];
+  }
+
+  message TSettings {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TVoiceZoneCapability.TZone SuppressedActivationZones = 1 [json_name = "suppressed_activation_zones", (.NYT.column_name) = "suppressed_activation_zones"];
+  }
+
+  message TSetVoiceZoneSettingsDirective {
+    option (.NAlice.SpeechKitName) = "set_voice_zone_settings";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetVoiceZoneSettingsDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    optional .NAlice.TVoiceZoneCapability.TZones SuppressedActivationZones = 1 [json_name = "suppressed_activation_zones", (.NYT.column_name) = "suppressed_activation_zones"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TVoiceZoneCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TVoiceZoneCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

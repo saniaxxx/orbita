@@ -1,0 +1,246 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "AudioPlayerCapabilitiesProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/audio_player;audioplayerpb";
+
+import "alice/protos/data/common_player_state/common_player_state.proto";
+import "alice/protos/data/playback_options.proto";
+import "alice/protos/data/scenario/music/karaoke_mode.proto";
+import "alice/protos/data/scenario/music/switching_streams_metadata.proto";
+import "alice/protos/endpoint/capabilities/audio_player/sequence_state.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TAudioPlayerCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = AudioPlayerCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "IsMultiroomSequenceStateSharingSupported";
+    reserved 6;
+    message TSequenceStateConditionalSupportParams {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      bool AllowMultiroomSharing = 1 [json_name = "allow_multiroom_sharing", (.NYT.column_name) = "allow_multiroom_sharing"];
+    }
+
+    enum ECodec {
+      Mp3 = 0;
+      Opus = 1;
+      Aac = 2;
+      Flac = 3;
+      HeAac = 4;
+      AacMp4 = 5;
+      FlacMp4 = 6;
+      HeAacMp4 = 7;
+    }
+
+    enum EStrmFeatures {
+      DecodeKey = 0;
+      MaxHttpRange = 1;
+    }
+
+    enum EQuality {
+      Default = 0;
+      Preview = 1;
+      Low = 2;
+      Normal = 3;
+      High = 4;
+      Lossless = 5;
+    }
+
+    bool GenericHlsPlaybackSupport = 1 [json_name = "generic_hls_playback_support", (.NYT.column_name) = "generic_hls_playback_support"];
+    repeated .NAlice.TAudioPlayerCapability.TParameters.ECodec SupportedCodecs = 2 [json_name = "supported_codecs", (.NYT.column_name) = "supported_codecs"];
+    repeated .NAlice.TAudioPlayerCapability.TParameters.EStrmFeatures SupportedStrmFeatures = 3 [json_name = "supported_strm_features", (.NYT.column_name) = "supported_strm_features"];
+    bool KaraokeSupport = 4 [json_name = "karaoke_support", (.NYT.column_name) = "karaoke_support"];
+    .NAlice.TAudioPlayerCapability.TParameters.EQuality Quality = 5 [json_name = "quality", (.NYT.column_name) = "quality"];
+    bool AutoQualityEnabled = 8 [json_name = "auto_quality_enabled", (.NYT.column_name) = "auto_quality_enabled"];
+    .NAlice.TAudioPlayerCapability.TParameters.TSequenceStateConditionalSupportParams SequenceStateConditionalSupportParams = 7 [json_name = "sequence_state_conditional_support_params", (.NYT.column_name) = "sequence_state_conditional_support_params"];
+    bool MusicSetSupport = 9 [json_name = "music_set_support", (.NYT.column_name) = "music_set_support"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    reserved "PlaybackOptions";
+    reserved "SwitchingStreamsMetadata";
+    reserved "HasPrefetchedTrack";
+    reserved 8;
+    reserved 9;
+    reserved 17;
+    message TFinishingTrackPlayerState {
+      .NAlice.TCommonPlayerState CommonPlayerState = 1 [json_name = "common_player_state", (.NYT.column_name) = "common_player_state"];
+      string StreamId = 2 [json_name = "stream_id", (.NYT.column_name) = "stream_id"];
+    }
+
+    message TPrefetchedTrack {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      string RequestId = 1 [json_name = "request_id", (.NYT.column_name) = "request_id"];
+    }
+
+    enum EStateType {
+      Unknown = 0;
+      Idle = 1;
+      Playing = 2;
+      Paused = 3;
+      Buffering = 4;
+      Stopped = 5;
+      Finished = 6;
+    }
+
+    .NAlice.TCommonPlayerState CommonPlayerState = 1 [json_name = "common_player_state", (.NYT.column_name) = "common_player_state"];
+    .NAlice.TAudioPlayerCapability.TState.EStateType StateType = 2 [json_name = "state_type", (.NYT.column_name) = "state_type"];
+    string StreamId = 3 [json_name = "stream_id", (.NYT.column_name) = "stream_id"];
+    string StreamType = 4 [json_name = "stream_type", (.NYT.column_name) = "stream_type"];
+    string Title = 5 [json_name = "title", (.NYT.column_name) = "title"];
+    string SubTitle = 6 [json_name = "subtitle", (.NYT.column_name) = "subtitle"];
+    .NAlice.TAudioPlayerSequenceState SequenceState = 7 [json_name = "sequence_state", (.NYT.column_name) = "sequence_state"];
+    .NAlice.NData.NMusic.TSwitchingStreamsMetadata SwitchStreamsMetadata = 10 [json_name = "switch_streams_metadata", (.NYT.column_name) = "switch_streams_metadata"];
+    .NAlice.NData.TPlaybackOptions PlaybackOpts = 11 [json_name = "playback_opts", (.NYT.column_name) = "playback_opts"];
+    double PlaybackSpeed = 12 [json_name = "playback_speed", (.NYT.column_name) = "playback_speed"];
+    bool IsCrossfaded = 13 [json_name = "is_crossfaded", (.NYT.column_name) = "is_crossfaded"];
+    int64 UserMusicSessionTimestamp = 14 [json_name = "user_music_session_timestamp", (.NYT.column_name) = "user_music_session_timestamp"];
+    .NAlice.TAudioPlayerCapability.TState.TFinishingTrackPlayerState FinishingTrackPlayerState = 15 [json_name = "finishing_track_player_state", (.NYT.column_name) = "finishing_track_player_state"];
+    .NAlice.NData.NMusic.EKaraokeMode KaraokeMode = 16 [json_name = "karaoke_mode", (.NYT.column_name) = "karaoke_mode"];
+    bool IsVinylPlayer = 19 [json_name = "is_vinyl_player", (.NYT.column_name) = "vinyl_player"];
+    optional .NAlice.TAudioPlayerCapability.TState.TPrefetchedTrack PrefetchedTrack = 18 [json_name = "prefetched_track", (.NYT.column_name) = "prefetched_track"];
+  }
+
+  message TProgressEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = AudioPlayerProgressEventType;
+    .NAlice.TAudioPlayerCapability.TState.EStateType StateType = 1 [json_name = "state_type", (.NYT.column_name) = "state_type"];
+    int64 OffsetMs = 2 [json_name = "offset_ms", (.NYT.column_name) = "offset_ms"];
+    int64 DurationMs = 3 [json_name = "duration_ms", (.NYT.column_name) = "duration_ms"];
+    int64 PlayedMs = 4 [json_name = "played_ms", (.NYT.column_name) = "played_ms"];
+    string StreamId = 5 [json_name = "stream_id", (.NYT.column_name) = "stream_id"];
+  }
+
+  message TSetSequenceStateDirective {
+    option (.NAlice.SpeechKitName) = "set_audio_player_sequence_state_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetAudioPlayerSequenceStateDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TAudioPlayerSequenceState SequenceState = 1 [json_name = "sequence_state", (.NYT.column_name) = "sequence_state"];
+  }
+
+  message TPlayDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_play_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerPlayDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TLikeDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_like_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerLikeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TUnlikeDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_unlike_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerUnlikeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TDislikeDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_dislike_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerDislikeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TUndislikeDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_undislike_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerUndislikeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TNextDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_next_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerNextDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TPreviousDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_previous_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerPreviousDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TRepeatOneDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_repeat_one_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerRepeatOneDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TRepeatAllDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_repeat_all_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerRepeatAllDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TUnrepeatDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_unrepeat_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerUnrepeatDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TShuffleDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_shuffle_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerShuffleDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TUnshuffleDirective {
+    option (.NAlice.SpeechKitName) = "audio_player_unshuffle_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerUnshuffleDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TGetLyricsDirective {
+    option (.NAlice.SpeechKitName) = "get_lyrics_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerGetLyricsDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TAudioSetSpeedLevelDirective {
+    option (.NAlice.SpeechKitName) = "audio_set_speed_level_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerSetSpeedLevelDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    optional double PlaybackSpeed = 1 [json_name = "playback_speed", (.NYT.column_name) = "playback_speed"];
+  }
+
+  message TEnableKaraokeModeDirective {
+    option (.NAlice.SpeechKitName) = "enable_karaoke_mode_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerEnableKaraokeModeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  message TDisableKaraokeModeDirective {
+    option (.NAlice.SpeechKitName) = "disable_karaoke_mode_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AudioPlayerDisableKaraokeModeDirectiveType;
+    optional string TrackId = 1 [json_name = "track_id", (.NYT.column_name) = "track_id"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TAudioPlayerCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TAudioPlayerCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

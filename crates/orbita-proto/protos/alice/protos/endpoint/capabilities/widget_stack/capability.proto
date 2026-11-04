@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "WidgetStackCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/widget_stack;widgetstackpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TWidgetStackCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = WidgetStackCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    message TSupportedWidget {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      .NAlice.TWidgetStackCapability.EWidgetType Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+    }
+
+    repeated .NAlice.TWidgetStackCapability.TParameters.TSupportedWidget SupportedWidgets = 1 [json_name = "supported_widgets", (.NYT.column_name) = "supported_widgets"];
+    uint64 MaxWidgetCount = 2 [json_name = "max_widget_count", (.NYT.column_name) = "max_widget_count"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TWidgetStackCapability.TWidget Widgets = 1 [json_name = "widgets", (.NYT.column_name) = "widgets"];
+  }
+
+  message TWidget {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    message TReminderWidget {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    }
+
+    message TWeatherWidget {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    }
+
+    message TIoTWidget {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      message TGroupWidget {
+        option (.NYT.default_field_flags) = SERIALIZATION_YT;
+        string GroupID = 1 [json_name = "group_id", (.NYT.column_name) = "group_id"];
+      }
+
+      message TDeviceWidget {
+        option (.NYT.default_field_flags) = SERIALIZATION_YT;
+        string DeviceID = 1 [json_name = "device_id", (.NYT.column_name) = "device_id"];
+      }
+
+      message TScenarioWidget {
+        option (.NYT.default_field_flags) = SERIALIZATION_YT;
+        string ScenarioID = 1 [json_name = "scenario_id", (.NYT.column_name) = "scenario_id"];
+        string Name = 2 [json_name = "name", (.NYT.column_name) = "name"];
+      }
+
+      message TAggregatedWidget {
+        option (.NYT.default_field_flags) = SERIALIZATION_YT;
+        repeated string DeviceIDs = 1 [json_name = "device_ids", (.NYT.column_name) = "device_ids"];
+        optional string Name = 2 [json_name = "name", (.NYT.column_name) = "name"];
+      }
+
+      oneof Widget {
+        option (.NYT.variant_field_name) = "widget";
+        .NAlice.TWidgetStackCapability.TWidget.TIoTWidget.TDeviceWidget DeviceWidget = 1 [json_name = "device_widget", (.NYT.column_name) = "device_widget"];
+        .NAlice.TWidgetStackCapability.TWidget.TIoTWidget.TScenarioWidget ScenarioWidget = 2 [json_name = "scenario_widget", (.NYT.column_name) = "scenario_widget"];
+        .NAlice.TWidgetStackCapability.TWidget.TIoTWidget.TGroupWidget GroupWidget = 3 [json_name = "group_widget", (.NYT.column_name) = "group_widget"];
+        .NAlice.TWidgetStackCapability.TWidget.TIoTWidget.TAggregatedWidget AggregatedWidget = 4 [json_name = "aggregated_widget", (.NYT.column_name) = "aggregated_widget"];
+      }
+    }
+
+    uint64 ID = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    uint64 Position = 2 [json_name = "position", (.NYT.column_name) = "position"];
+    oneof Widget {
+      option (.NYT.variant_field_name) = "widget";
+      .NAlice.TWidgetStackCapability.TWidget.TReminderWidget ReminderWidget = 3 [json_name = "reminder_widget", (.NYT.column_name) = "reminder_widget"];
+      .NAlice.TWidgetStackCapability.TWidget.TWeatherWidget WeatherWidget = 4 [json_name = "weather_widget", (.NYT.column_name) = "weather_widget"];
+      .NAlice.TWidgetStackCapability.TWidget.TIoTWidget IoTWidget = 5 [json_name = "iot_widget", (.NYT.column_name) = "io_twidget"];
+    }
+  }
+
+  message TSetWidgetStackDirective {
+    option (.NAlice.SpeechKitName) = "set_widget_stack_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetWidgetStackDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    repeated .NAlice.TWidgetStackCapability.TWidget CurrentStack = 1 [json_name = "current_stack", (.NYT.column_name) = "current_stack"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = WidgetStackUpdateStateEventType;
+    .NAlice.TWidgetStackCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EWidgetType {
+    Unknown = 0;
+    ReminderWidgetType = 1;
+    WeatherWidgetType = 2;
+    IoTWidgetType = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TWidgetStackCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TWidgetStackCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

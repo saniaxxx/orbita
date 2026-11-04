@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "WaterLeakSensorProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/water_leak_sensor;waterleaksensorpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/endpoint/events/events.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TWaterLeakSensorCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = WaterLeakSensorCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TTypedCapabilityEvent LastEvent = 1 [json_name = "last_event", (.NYT.column_name) = "last_event"];
+  }
+
+  message TResetLeakDirective {
+    option (.NAlice.SpeechKitName) = "reset_leak_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = ResetLeakDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+  }
+
+  message TTriggerLeakDirective {
+    option (.NAlice.SpeechKitName) = "trigger_leak_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = TriggerLeakDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    optional string SourceName = 1 [json_name = "source_name", (.NYT.column_name) = "source_name"];
+  }
+
+  message TWaterLeakSensorLeakEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = WaterLeakSensorLeakEventType;
+  }
+
+  message TWaterLeakSensorDryEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = WaterLeakSensorDryEventType;
+  }
+
+  message TCondition {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TCapability.EEventType Events = 1 [json_name = "events", (.NYT.column_name) = "events"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TWaterLeakSensorCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TWaterLeakSensorCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

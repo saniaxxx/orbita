@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "NightVisionCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/night_vision;nightvisionpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TNightVisionCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = NightVisionCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool Enabled = 1 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+    .NAlice.TNightVisionCapability.EMode Mode = 2 [json_name = "mode", (.NYT.column_name) = "mode"];
+  }
+
+  message TSetNightVisionModeDirective {
+    option (.NAlice.SpeechKitName) = "set_night_vision_mode_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetNightVisionModeDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TNightVisionCapability.EMode Mode = 1 [json_name = "mode", (.NYT.column_name) = "mode"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = NightVisionUpdateStateEventType;
+    .NAlice.TNightVisionCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EMode {
+    MODE_UNKNOWN = 0;
+    MODE_ALWAYS_ENABLED = 1;
+    MODE_ALWAYS_DISABLED = 2;
+    MODE_AUTOMATIC = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TNightVisionCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TNightVisionCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

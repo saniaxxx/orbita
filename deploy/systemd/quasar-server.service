@@ -1,0 +1,21 @@
+[Unit]
+Description=quasar-server: emulator of the Yandex Station cloud backend (uniproxy, sync, directives)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/quasar-server
+Environment=PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+Environment=PORT=31120
+Environment=API_PORT=31121
+Environment=ALLOW_UPDATES=0
+Environment=UPDATES_CONFIG_PATH=updates-config.yml
+ExecStart=/opt/quasar-server/node_modules/.bin/tsx src/main.ts
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

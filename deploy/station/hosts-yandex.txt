@@ -1,0 +1,40 @@
+# orbita: 2026-11-01 — force Yandex domains to our stack on the station
+192.168.250.103 clck.yandex.net
+192.168.250.103 clck.yasmina.yango.com
+192.168.250.103 login.yandex.ru
+192.168.250.103 login.yasmina.funtechservices.com
+192.168.250.103 login.yasmina.yango.com
+192.168.250.103 mobileproxy.passport.yandex.net
+192.168.250.103 mobileproxy.yango.com
+192.168.250.103 oauth.yandex.ru
+192.168.250.103 oauth.yasmina.funtechservices.com
+192.168.250.103 oauth.yasmina.yango.com
+192.168.250.103 push.yandex.ru
+192.168.250.103 push.yasmina.yango.com
+192.168.250.103 quasar.yandex.net
+192.168.250.103 quasar.yandex.ru
+192.168.250.103 quasar.yasmina.funtechservices.com
+192.168.250.103 quasar.yasmina.yango.com
+192.168.250.103 report.appmetrica.yandex.net
+192.168.250.103 rpc.alice.yandex.net
+192.168.250.103 rpc.yasmina.yango.com
+192.168.250.103 scbh.yandex.net
+192.168.250.103 startup.appmetrica.yango.com
+192.168.250.103 startup.mobile.yandex.net
+192.168.250.103 uniproxy-quic.alice.yandex.net
+192.168.250.103 uniproxy.alice.yandex.net
+192.168.250.103 ws.api.music.yandex.net
+192.168.250.103 tracking.appmetrica.yandex.net
+192.168.250.103 analytics.mobile.yandex.net
+192.168.250.103 rosenberg.appmetrica.yandex.net
+192.168.250.103 zen.report.appmetrica.yandex.net
+192.168.250.103 redirect.appmetrica.yandex.com
+192.168.250.103 certificate.mobile.yandex.net
+# Alternative Yandex names the station tries; not in https-proxy/domains/yandex.txt,
+# but they resolve to the real Yandex and cause a fallback. /etc/hosts has no wildcards.
+192.168.250.103 alice.yandex.ru
+192.168.250.103 uniproxy.alice.yandex.ru
+192.168.250.103 uniproxy-quic.alice.yandex.ru
+192.168.250.103 rpc.alice.yandex.ru
+192.168.250.103 alice.yandex.com
+192.168.250.103 quasar.yandex.com

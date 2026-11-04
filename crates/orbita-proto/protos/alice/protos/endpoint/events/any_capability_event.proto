@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.events";
+option java_outer_classname = "AnyCapabilityEventsProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/events;eventspb";
+
+import "alice/protos/endpoint/capability.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TAnyCapabilityEventHolder {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  bytes RawEvent = 1 [json_name = "raw_event", (.NYT.column_name) = "raw_event"];
+  .NAlice.TCapability.EEventType EventType = 2 [json_name = "event_type", (.NYT.column_name) = "event_type"];
+}
+

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotIndicatorCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_indicator;iotindicatorpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotIndicatorCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotIndicatorCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool Disabled = 1 [json_name = "disabled", (.NYT.column_name) = "disabled"];
+  }
+
+  message TSetDisabledDirective {
+    option (.NAlice.SpeechKitName) = "iot_set_disabled_indicator_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotSetDisabledIndicatorDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    bool Disabled = 1 [json_name = "disabled", (.NYT.column_name) = "disabled"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotIndicatorUpdateStateEventType;
+    .NAlice.TIotIndicatorCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotIndicatorCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotIndicatorCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

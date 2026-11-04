@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "IotWorkSpeedCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_work_speed;iotworkspeedpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TIotWorkSpeedCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotWorkSpeedCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TIotWorkSpeedCapability.ESpeed Speed = 1 [json_name = "speed", (.NYT.column_name) = "speed"];
+  }
+
+  message TSetWorkSpeedDirective {
+    option (.NAlice.SpeechKitName) = "set_work_speed_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetWorkSpeedDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TIotWorkSpeedCapability.ESpeed Speed = 1 [json_name = "speed", (.NYT.column_name) = "speed"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotWorkSpeedUpdateStateEventType;
+    .NAlice.TIotWorkSpeedCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum ESpeed {
+    UNKNOWN = 0;
+    LOW = 1;
+    MEDIUM = 2;
+    HIGH = 3;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotWorkSpeedCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotWorkSpeedCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

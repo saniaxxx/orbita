@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "VoiceEnrollmentProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/voice_enrollment;voiceenrollmentpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/library/censor/protos/extension.proto";
+import "alice/library/yt/extensions/alice_options.proto";
+import "alice/protos/data/scenario/voiceprint/personalization_data.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TVoiceEnrollmentCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = VoiceEnrollmentCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool SupportsShareDirective = 1 [json_name = "supports_share_directive", (.NYT.column_name) = "supports_share_directive"];
+    bool SuppressFinishResponse = 2 [json_name = "suppress_finish_response", (.NYT.column_name) = "suppress_finish_response"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    bool EnrollmentInProgress = 1 [json_name = "enrollment_in_progress", (.NYT.column_name) = "enrollment_in_progress"];
+  }
+
+  message TEnrollmentStartDirective {
+    option (.NAlice.SpeechKitName) = "enrollment_start_enrollment_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = EnrollmentStartDirectiveType;
+    uint32 TimeoutMs = 1 [json_name = "timeout_ms", (.NYT.column_name) = "timeout_ms"];
+    uint64 Puid = 2 [json_name = "puid", (.NYT.column_name) = "puid", (.NAlice.FieldAccess) = A_PRIVATE_RESPONSE, (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+  }
+
+  message TEnrollmentFinishDirective {
+    option (.NAlice.SpeechKitName) = "enrollment_finish_enrollment_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = EnrollmentFinishDirectiveType;
+    string PersId = 1 [json_name = "pers_id", (.NYT.column_name) = "pers_id"];
+    bool SendGuestEnrollmentFinishFrame = 2 [json_name = "send_guest_enrollment_finish_frame", (.NYT.column_name) = "send_guest_enrollment_finish_frame"];
+  }
+
+  message TEnrollmentCancelDirective {
+    option (.NAlice.SpeechKitName) = "enrollment_cancel_enrollment_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = EnrollmentCancelDirectiveType;
+  }
+
+  message TEnrollmentShareDirective {
+    option (.NAlice.SpeechKitName) = "enrollment_share_enrollment_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = EnrollmentShareDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    uint64 Puid = 1 [json_name = "puid", (.NYT.column_name) = "puid", (.NAliceYT.PrivateGroup) = PrivateGroupPuid];
+    string UserName = 2 [json_name = "user_name", (.NYT.column_name) = "user_name", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+    .NAlice.NData.NVoiceprint.EGender Gender = 3 [json_name = "gender", (.NYT.column_name) = "gender", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+    repeated string DeviceIds = 4 [json_name = "device_ids", (.NYT.column_name) = "device_ids", (.NAliceYT.PrivateGroup) = PrivateGroupLevel1];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TVoiceEnrollmentCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TVoiceEnrollmentCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

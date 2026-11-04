@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.api.rpc.iot.custom_noises";
+option java_outer_classname = "CustomNoises";
+option go_package = "a.yandex-team.ru/alice/protos/api/rpc/iot/custom_noises;customnoisespb";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TCustomNoise {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  repeated .NAlice.TSample Samples = 2 [json_name = "samples", (.NYT.column_name) = "samples"];
+}
+
+message TSample {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  bytes Data = 2 [json_name = "data", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "data"];
+}
+
+message TIoTGetCustomNoiseSamplesByIdsRequest {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated string Ids = 1 [json_name = "ids", (.NYT.column_name) = "ids"];
+}
+
+message TIoTGetCustomNoiseSamplesByIdsResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.TSample Samples = 1 [json_name = "samples", (.NYT.column_name) = "samples"];
+}
+
+message TIoTGetCustomNoisesByIdsRequest {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated string Ids = 1 [json_name = "ids", (.NYT.column_name) = "ids"];
+}
+
+message TIoTGetCustomNoisesByIdsResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  repeated .NAlice.TCustomNoise Noises = 1 [json_name = "noises", (.NYT.column_name) = "noises"];
+}
+
+message TIoTUploadCustomNoiseRecordingRequest {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  string SessionId = 1 [json_name = "session_id", (.NYT.column_name) = "session_id"];
+  bytes Data = 2 [json_name = "data", (.NYT.flags) = SERIALIZATION_PROTOBUF, (.NYT.column_name) = "data"];
+}
+
+message TIoTUploadCustomNoiseRecordingResponse {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+}
+

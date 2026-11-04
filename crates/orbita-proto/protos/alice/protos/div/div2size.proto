@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.div";
+option java_outer_classname = "Div2SizeProto";
+option go_package = "a.yandex-team.ru/alice/protos/div";
+
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TDiv2Size {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  double Width = 1 [json_name = "width", (.NYT.column_name) = "width"];
+  double Height = 2 [json_name = "height", (.NYT.column_name) = "height"];
+}
+

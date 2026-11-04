@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "LightingReactionCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/lighting_reaction_capability;lightingreactioncapabilitypb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TLightingReactionCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = LightingReactionCapabilityType;
+  message TSetting {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    message TDndRespectSetting {
+      option (.NYT.default_field_flags) = SERIALIZATION_YT;
+      bool Enabled = 1 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+    }
+
+    oneof Setting {
+      option (.NYT.variant_field_name) = "setting";
+      .NAlice.TLightingReactionCapability.TSetting.TDndRespectSetting DndRespect = 1 [json_name = "dnd_respect", (.NYT.column_name) = "dnd_respect"];
+    }
+  }
+
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TLightingReactionCapability.EWeather SupportedWeather = 1 [json_name = "supported_weather", (.NYT.column_name) = "supported_weather"];
+    repeated .NAlice.TLightingReactionCapability.TSetting SupportedSettings = 2 [json_name = "supported_settings", (.NYT.column_name) = "supported_settings"];
+  }
+
+  message TReactionEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TLightingReactionCapability.EEvent Event = 1 [json_name = "event", (.NYT.column_name) = "event"];
+    bool Enabled = 2 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TLightingReactionCapability.EEvent EnabledEvents = 1 [json_name = "enabled_events", (.NYT.column_name) = "enabled_events"];
+    repeated .NAlice.TLightingReactionCapability.TReactionEvent Events = 2 [json_name = "events", (.NYT.column_name) = "events"];
+    repeated .NAlice.TLightingReactionCapability.TSetting Settings = 3 [json_name = "settings", (.NYT.column_name) = "settings"];
+  }
+
+  message TSetEventsDirective {
+    option (.NAlice.SpeechKitName) = "set_events_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetEventsDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    repeated .NAlice.TLightingReactionCapability.EEvent Events = 1 [json_name = "events", (.NYT.column_name) = "events"];
+  }
+
+  message TSetReactionEventsDirective {
+    option (.NAlice.SpeechKitName) = "set_reaction_events_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetReactionEventsDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    repeated .NAlice.TLightingReactionCapability.TReactionEvent ReactionEvents = 1 [json_name = "reaction_events", (.NYT.column_name) = "reaction_events"];
+  }
+
+  message TPlayWeatherDirective {
+    option (.NAlice.SpeechKitName) = "play_weather_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = PlayWeatherDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TLightingReactionCapability.EWeather Weather = 1 [json_name = "weather", (.NYT.column_name) = "weather"];
+  }
+
+  message TSetReactionSettingDirective {
+    option (.NAlice.SpeechKitName) = "set_reaction_setting_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = SetReactionSettingDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TLightingReactionCapability.TSetting Setting = 1 [json_name = "setting", (.NYT.column_name) = "setting"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = LightingReactionUpdateStateEventType;
+    .NAlice.TLightingReactionCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EWeather {
+    RAIN = 0;
+    SNOW = 1;
+    CLOUDY = 2;
+    CLEAR = 3;
+  }
+
+  enum EEvent {
+    EVENT_TIMER = 0;
+    EVENT_TIMER_ALARM = 1;
+    EVENT_TTS = 2;
+    EVENT_NOTIFY = 3;
+    EVENT_REMINDER = 4;
+    EVENT_CALL = 5;
+    EVENT_ALARM = 6;
+    EVENT_WEATHER = 7;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TLightingReactionCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TLightingReactionCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

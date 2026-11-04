@@ -1,0 +1,130 @@
+syntax = "proto2";
+
+package quasar.proto;
+
+option java_package = "ru.yandex.quasar.protobuf";
+option java_outer_classname = "FunctionalTests";
+
+import "yandex_io/protos/model_objects.proto";
+import "yandex_io/sdk/private/endpoint_storage/protos/endpoint.proto";
+import "yandex_io/sdk/directive_sequencer/protos/directive.proto";
+
+message EmulatedButton {
+  optional .quasar.proto.EmptyMessage activate = 1;
+  optional .quasar.proto.EmptyMessage volume_up = 2;
+  optional .quasar.proto.EmptyMessage volume_down = 3;
+  optional .quasar.proto.EmptyMessage volume_mute = 4;
+  optional .quasar.proto.EmptyMessage volume_unmute = 5;
+  optional .quasar.proto.EmptyMessage volume_toggle_mute = 6;
+  optional .quasar.proto.EmptyMessage start_conversation = 7;
+  optional .quasar.proto.EmptyMessage toggle_play_pause = 8;
+  optional .quasar.proto.EmptyMessage next = 9;
+  optional .quasar.proto.EmptyMessage prev = 10;
+  optional .quasar.proto.EmptyMessage micro_mute = 11;
+  optional .quasar.proto.EmptyMessage micro_unmute = 12;
+}
+
+message EmulateBluetooth {
+  optional .quasar.proto.EmptyMessage connect = 1;
+  optional .quasar.proto.EmptyMessage disconnect = 2;
+  optional .quasar.proto.EmptyMessage play = 3;
+  optional .quasar.proto.EmptyMessage pause = 4;
+}
+
+message AuthenticateRequest {
+  optional string xcode = 1;
+}
+
+message AudioSenderMode {
+  optional bool enabled = 1;
+}
+
+message AsrResult {
+  optional string json_payload = 1;
+}
+
+message SetSetupMode {
+  optional bool enabled = 1;
+}
+
+message TestpointProxyOpen {
+  optional string service_name = 1;
+}
+
+message TestpointProxyClose {
+  optional string reason = 1;
+}
+
+message TestpointProxyData {
+  optional bytes payload = 1;
+}
+
+message TestpointProxyEvent {
+  enum EType {
+    CONNECTED = 1;
+    DISCONNECTED = 2;
+    ERROR = 3;
+  }
+
+  optional .quasar.proto.TestpointProxyEvent.EType type = 1;
+  optional string message = 2;
+}
+
+message TestpointProxyEnvelope {
+  optional uint32 channel_id = 1;
+  optional .quasar.proto.TestpointProxyOpen open = 2;
+  optional .quasar.proto.TestpointProxyClose close = 3;
+  optional .quasar.proto.TestpointProxyData data = 4;
+  optional .quasar.proto.TestpointProxyEvent event = 5;
+}
+
+message TestpointLogSubscription {
+  optional bool enabled = 1;
+}
+
+message TestpointLogRecord {
+  enum ELevel {
+    TRACE = 1;
+    DEBUG = 2;
+    INFO = 3;
+    WARN = 4;
+    ERROR = 5;
+  }
+
+  optional int64 timestamp_ms = 1;
+  optional .quasar.proto.TestpointLogRecord.ELevel level = 2;
+  optional string message = 3;
+}
+
+message TestpointLogMarker {
+  optional uint64 id = 1;
+}
+
+message TestpointMessage {
+  reserved "start_configuration_mode";
+  reserved "platform_volume_state";
+  reserved "test_event";
+  reserved "alice_volume_state";
+  reserved "start_enrollment_push";
+  reserved "percent_volume_state";
+  reserved 2;
+  reserved 3;
+  reserved 7;
+  reserved 8;
+  reserved 9;
+  reserved 13;
+  optional .quasar.proto.EmulatedButton emulated_button = 1;
+  repeated .quasar.proto.Directive incoming_directive = 4;
+  optional .quasar.proto.EmulateBluetooth emulated_bluetooth = 5;
+  optional .quasar.proto.AuthenticateRequest authenticate_request = 6;
+  optional .quasar.proto.AudioSenderMode audiosender_mode = 10;
+  optional .quasar.proto.AsrResult asr_result = 11;
+  optional .quasar.proto.EmptyMessage request_config_update = 12;
+  optional .quasar.proto.EmptyMessage revoke_user_account_info = 14;
+  optional .quasar.proto.SetSetupMode set_setup_mode = 15;
+  optional .quasar.proto.TestpointProxyEnvelope proxy = 16;
+  optional .quasar.proto.TestpointLogSubscription log_subscription = 17;
+  optional .quasar.proto.TestpointLogRecord log_record = 18;
+  optional .quasar.proto.TestpointLogMarker log_marker = 19;
+}
+

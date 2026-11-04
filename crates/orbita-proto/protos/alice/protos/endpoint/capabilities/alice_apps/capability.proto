@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "AliceApps";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/alice_apps;aliceappspb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/data/dialogs/alice_agent_app_deployment.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TAliceAppsCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = AliceAppsCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    string SelectedAppId = 1 [json_name = "selected_app_id", (.NYT.column_name) = "selected_app_id"];
+    bool DeveloperMode = 3 [json_name = "developer_mode", (.NYT.column_name) = "developer_mode"];
+    optional .NAlice.NData.NDialogs.EAliceAgentAppDeployment SelectedDeployment = 2 [json_name = "selected_deployment", (.NYT.column_name) = "selected_deployment"];
+  }
+
+  message TSelectAliceAppsDirective {
+    option (.NAlice.SpeechKitName) = "select_alice_apps_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = AliceAppsSelectDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    string Id = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TAliceAppsCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TAliceAppsCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

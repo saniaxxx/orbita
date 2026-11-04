@@ -1,0 +1,73 @@
+{
+  "mqtt": {
+    "url": "mqtt://192.168.250.102:1883",
+    "client_id": "orbita-home",
+    "username": null,
+    "password": null
+  },
+  "stale_after_ms": 30000,
+  "rate_limit_per_min": 60,
+  "devices": [
+    {
+      "id": "living_light",
+      "room": "living",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6c_1/K1",
+      "aliases": ["свет в гостиной", "люстра"],
+      "meta_error_topic": "/devices/wb-mr6c_1/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6c_1/controls/K1",
+          "command_topic": "/devices/wb-mr6c_1/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "living_socket",
+      "room": "living",
+      "kind": "socket",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6c_1/K2",
+      "aliases": ["розетка в гостиной"],
+      "meta_error_topic": "/devices/wb-mr6c_1/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6c_1/controls/K2",
+          "command_topic": "/devices/wb-mr6c_1/controls/K2/on"
+        }
+      ]
+    },
+    {
+      "id": "front_door",
+      "room": "hall",
+      "kind": "door_sensor",
+      "integration": "wirenboard",
+      "external_id": "wb-door/1",
+      "aliases": ["входная дверь"],
+      "meta_error_topic": "/devices/wb-door/controls/contact/meta/error",
+      "capabilities": [
+        {
+          "name": "open",
+          "type": "bool",
+          "readable": true,
+          "writable": false,
+          "risk": "safe",
+          "state_topic": "/devices/wb-door/controls/contact"
+        }
+      ]
+    }
+  ]
+}

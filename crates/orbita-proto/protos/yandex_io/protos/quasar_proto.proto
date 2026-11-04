@@ -1,0 +1,1033 @@
+syntax = "proto2";
+
+package quasar.proto;
+
+option java_package = "ru.yandex.quasar.protobuf";
+option java_outer_classname = "QuasarProto";
+
+import "yandex_io/protos/account_storage.proto";
+import "yandex_io/protos/alice_state.proto";
+import "yandex_io/protos/model_objects.proto";
+import "yandex_io/protos/yandex_io.proto";
+import "yandex_io/protos/functional_tests.proto";
+import "yandex_io/protos/remoting.proto";
+import "yandex_io/sdk/private/endpoint_storage/protos/endpoint.proto";
+import "yandex_io/sdk/directive_sequencer/protos/directive.proto";
+import "yandex_io/capabilities/config/sync_messages/sync_messages.proto";
+import "yandex_io/libs/metrica/db/protos/db_event.proto";
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+
+extend .google.protobuf.EnumValueOptions {
+  optional string payload_type = 58600;
+}
+message WifiConnect {
+  optional string wifi_id = 1;
+  optional string password = 2;
+  optional .quasar.proto.WifiType wifi_type = 3;
+}
+
+message WifiConnectResponse {
+  enum Status {
+    OK = 0;
+    SSID_NOT_FOUND = 1;
+    AUTH_ERROR = 2;
+    TIMEOUT = 3;
+  }
+
+  required .quasar.proto.WifiConnectResponse.Status status = 1;
+}
+
+message MediaMessage {
+  optional .quasar.proto.SearchResult recommendations = 1;
+  optional .quasar.proto.SearchResult featured_new = 2;
+  optional .quasar.proto.SearchResult trending = 3;
+  optional .quasar.proto.SearchResult music = 17;
+  optional .quasar.proto.MediaItem last_watched = 4;
+  optional .quasar.proto.EmptyMessage next_screen = 5;
+  optional .quasar.proto.EmptyMessage previous_screen = 6;
+  optional .quasar.proto.EmptyMessage to_start = 7;
+  optional .quasar.proto.EmptyMessage to_end = 8;
+  optional .quasar.proto.EmptyMessage to_home_screen = 9;
+  optional .quasar.proto.SearchResult show_video_list = 10;
+  optional .quasar.proto.DescriptionItem show_description = 11;
+  optional .quasar.proto.PaymentItem show_payment = 16;
+  optional .quasar.proto.TvAnnounce show_tv_announce = 18;
+  optional .quasar.proto.EmptyMessage show_bottom_sheet = 12;
+  optional .quasar.proto.EmptyMessage hide_bottom_sheet = 13;
+  repeated string home_screen_suggests = 14;
+  optional string message_id = 15;
+  optional .quasar.proto.EmptyMessage leader_lost = 19;
+  optional .quasar.proto.EmptyMessage leader_connected = 20;
+  optional .quasar.proto.EmptyMessage hdmi_on = 21;
+  optional .quasar.proto.EmptyMessage hdmi_off = 22;
+  optional .quasar.proto.EmptyMessage go_up = 23;
+  optional .quasar.proto.EmptyMessage go_down = 24;
+}
+
+message AddUserRequest {
+  required string auth_code = 1;
+  optional .quasar.proto.AccountType account_type = 2;
+  optional bool with_xtoken = 3;
+}
+
+message DeleteUserRequest {
+  optional int64 id = 1;
+}
+
+message ChangeUserRequest {
+  optional int64 id = 1;
+}
+
+message IssueAuthCodeRequest {
+  optional int64 id = 1;
+}
+
+message IssueAuthCodeResponse {
+  enum Status {
+    OK = 0;
+    NO_INTERNET = 1;
+    WRONG_USER = 2;
+  }
+
+  optional .quasar.proto.IssueAuthCodeResponse.Status status = 1;
+  optional string auth_code = 2;
+}
+
+message AuthTokenUpdateRequest {
+  optional string auth_token = 1;
+  optional string source = 2;
+  optional bool revoke_old_token = 3;
+}
+
+message AddUserResponse {
+  enum Status {
+    OK = 0;
+    NO_INTERNET = 4;
+    CODE_EXPIRED = 5;
+    CRYPTO_ERROR = 6;
+    INVALID_TOKEN = 7;
+  }
+
+  required .quasar.proto.AddUserResponse.Status status = 1;
+  optional string auth_token = 2;
+  optional int64 id = 3;
+  optional string xtoken = 6;
+  optional int64 tag = 7;
+}
+
+message DeleteUserResponse {
+  enum Status {
+    OK = 0;
+    WRONG_USER = 1;
+  }
+
+  optional .quasar.proto.DeleteUserResponse.Status status = 1;
+}
+
+message AuthEvent {
+  optional string auth_token = 1;
+  optional string passport_uid = 2;
+  optional string xtoken = 3;
+  optional int64 tag = 4;
+  optional .quasar.proto.AccountType type = 5;
+  optional bool is_active = 6;
+}
+
+message OwnerStartupInfo {
+  reserved 5;
+  optional string auth_token = 2;
+  optional string passport_uid = 3;
+  optional string xtoken = 4;
+  optional int64 tag = 6;
+}
+
+message AllStartupInfo {
+  repeated .quasar.proto.AuthEvent accounts = 1;
+}
+
+message MetricaMessage {
+  reserved "config";
+  reserved 2;
+  reserved 4;
+  reserved 5;
+  reserved 7;
+  reserved 18;
+  message AppEnvironmentValue {
+    optional string key = 1;
+    optional string value = 2;
+  }
+
+  message StatsRecord {
+    optional string name = 1;
+    repeated uint64 counters = 2;
+  }
+
+  message Statistics {
+    optional string service_name = 1;
+    repeated .quasar.proto.MetricaMessage.StatsRecord data = 2;
+  }
+
+  optional string report_event = 1;
+  optional string report_event_json_value = 8;
+  optional string report_error = 3;
+  optional string report_error_value = 12;
+  optional string metrica_uuid = 6;
+  optional .quasar.proto.MetricaMessage.AppEnvironmentValue app_environment_value = 9;
+  optional string delete_environment_key = 11;
+  optional uint64 flags = 13;
+  optional .quasar.proto.NetworkStatus network_status = 14;
+  optional .quasar.proto.Location location = 16;
+  optional .quasar.proto.Timezone timezone = 17;
+  optional .quasar.proto.MetricaMessage.Statistics stats = 19;
+  optional .quasar.proto.EmptyMessage flush = 20;
+  optional string sync_uuid = 21;
+  optional .quasar.proto.EmptyMessage clock_synchronized = 22;
+  optional bool need_network_status = 23;
+  optional bool is_listening = 24;
+  optional .google.protobuf.Timestamp timestamp = 25;
+  optional string passport_uid = 26;
+}
+
+message RecordingEvent {
+  optional string phrase = 1;
+  optional string speaker_id = 2;
+  optional string phrase_id = 3;
+  optional int32 seat_number = 9;
+  optional .quasar.proto.EmptyMessage pause = 4;
+  optional .quasar.proto.EmptyMessage resume = 5;
+  optional string error = 6;
+  optional string device_id = 7;
+  optional bytes audio_data = 8;
+  optional bool child = 10 [default = false];
+  optional int64 timestamp_ms = 11;
+}
+
+message PhraseEndEvent {
+  optional bool success = 1 [default = false];
+  optional int64 timestamp_ms = 2;
+}
+
+message UpdateProgress {
+  optional double downloaded_percent = 1;
+}
+
+message ExternalCommandResponse {
+  required bool processed = 1;
+}
+
+message VinsCallResponse {
+  reserved 1;
+  reserved 3;
+  enum Status {
+    OK = 0;
+    ERROR = 1;
+  }
+
+  optional string vins_response = 7;
+  optional .quasar.proto.VinsCallResponse.Status status = 2;
+  optional string error_code = 4;
+  optional string error_text = 5;
+  optional string error_text_lang = 6;
+}
+
+message LeaderOverride {
+  reserved 1;
+  reserved 2;
+  reserved 3;
+  optional .quasar.proto.MusicStateOverride music_state_override = 4;
+  optional .quasar.proto.RadioStateOverride radio_state_override = 5;
+}
+
+message MusicStateOverride {
+  reserved 8;
+  optional bool is_paused = 1;
+  optional double progress = 2;
+  optional double duration = 3;
+  optional string title = 4;
+  optional string artists = 5;
+  optional string cover_uri = 6;
+  optional .quasar.proto.AppState.MusicState.TrackType next_track_type = 7;
+  optional .quasar.proto.Audio.Screen screen_type = 9;
+  optional string provider_name = 10;
+}
+
+message RadioStateOverride {
+  optional bool is_paused = 1;
+  optional string title = 2;
+  optional string cover_uri = 3;
+  optional string color = 4;
+}
+
+message SimplePlayerState {
+  message TrackInfo {
+    optional string id = 1;
+    optional string type = 2;
+  }
+
+  message EntityInfo {
+    optional string id = 1;
+    optional string type = 2;
+    optional string description = 3;
+    optional .quasar.proto.SimplePlayerState.TrackInfo prev = 4;
+    optional .quasar.proto.SimplePlayerState.TrackInfo next = 5;
+    optional bool shuffled = 6;
+    optional string repeat_mode = 7;
+  }
+
+  enum PlayerType {
+    UNKNOWN = 0;
+    MUSIC = 1;
+    RADIO = 2;
+    BLUETOOTH = 3;
+    VIDEO = 4;
+  }
+
+  optional bool has_pause = 1;
+  optional bool has_play = 2;
+  optional bool has_next = 3;
+  optional bool has_prev = 4;
+  optional int64 position_time_point = 22;
+  optional double position = 5;
+  optional double duration = 6;
+  optional string title = 7;
+  optional string subtitle = 8;
+  optional bool has_progress_bar = 9;
+  optional bool has_like = 11;
+  optional bool has_dislike = 12;
+  optional bool show_player = 13;
+  optional string live_stream_text = 14;
+  optional string id = 15;
+  optional string type = 16;
+  optional string player_name = 17;
+  optional .quasar.proto.SimplePlayerState.EntityInfo entity_info = 18;
+  optional string provider_name = 19;
+  optional bool hide_progress_bar = 20;
+  optional .quasar.proto.SimplePlayerState.PlayerType player_type = 21;
+  optional string playback_starter_user_id = 23;
+  optional string current_screen = 24;
+  map<string, string> extra = 100;
+}
+
+message MordoviaShowMessage {
+  reserved 3;
+  optional string url = 1;
+  optional bool is_full_screen = 2;
+  optional string splash_div = 4;
+  optional string server_callback_prototype = 5;
+  optional string view_key = 6;
+  optional string scenario_name = 7;
+  optional bool go_back = 8;
+  optional string vins_request_id = 9;
+}
+
+message MordoviaCommandMessage {
+  reserved 3;
+  optional string command = 1;
+  optional string meta = 2;
+  optional string view_key = 4;
+  optional string scenario_name = 5;
+  optional string vins_request_id = 6;
+}
+
+message SetupRcuAutoEvent {
+  optional string tv_model = 1;
+}
+
+message LogMessage {
+  message Source {
+    optional string filename = 1;
+    optional int32 line = 2;
+    optional string funcname = 3;
+    optional string path = 4;
+  }
+
+  enum Level {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERROR = 4;
+  }
+
+  optional .quasar.proto.LogMessage.Level level = 1;
+  optional int64 timestamp_ms = 2;
+  optional .quasar.proto.LogMessage.Source source = 3;
+  optional string msg = 4;
+  optional string device_id = 5;
+  optional string platform = 6;
+}
+
+message NsdEnable {
+  optional uint32 server_port = 1;
+  optional .quasar.proto.GlagolDiscoveryItem.GroupRole stereopair = 2;
+  optional .quasar.proto.GlagolDiscoveryItem.GroupRole tandem = 3;
+  optional bool guest_mode = 4;
+  optional bool discovered_request = 5;
+}
+
+message BrickState {
+  optional .quasar.proto.BrickStatus brick_status = 1;
+  optional string disabled_reason = 2;
+}
+
+message NetworkStatsCommand {
+  message DumpNetStatus {
+  }
+
+  optional .quasar.proto.NetworkStatsCommand.DumpNetStatus dump_net_status = 1;
+  optional .quasar.proto.EmptyMessage get_arps = 2;
+}
+
+message NetworkStats {
+  message Arp {
+    optional string ip = 1;
+    optional string mac = 2;
+    optional .quasar.proto.NetworkStats.ArpState state = 3;
+  }
+
+  message NetDevice {
+    optional string name = 1;
+    optional string mac = 2;
+    optional bool running = 3;
+    repeated string addresses = 4;
+    optional uint64 ms_in_state = 5;
+    repeated .quasar.proto.NetworkStats.Arp arps = 6;
+  }
+
+  enum ArpState {
+    INCOMPLETE = 0;
+    REACHABLE = 1;
+    STALE = 2;
+    DELAY = 3;
+    PROBE = 4;
+    FAILED = 5;
+    NOARP = 6;
+    UNKNOWN = 7;
+  }
+
+  repeated .quasar.proto.NetworkStats.NetDevice devices = 1;
+  optional .quasar.proto.EmptyMessage with_arps = 2;
+}
+
+message UpdateHealthCheck {
+  message UpdateHealthCheckStatus {
+    message RssStatuses {
+      enum Status {
+        UNKNOWN = 0;
+        OK = 1;
+        EXCEEDED = 2;
+      }
+
+      map<string, .quasar.proto.UpdateHealthCheck.UpdateHealthCheckStatus.RssStatuses.Status> statuses = 1;
+    }
+
+    message MinidumpInfos {
+      map<string, string> infos = 1;
+    }
+
+    optional bool is_alice_connected = 1;
+    optional bool is_mic_audio_detected = 2;
+    optional .quasar.proto.UpdateHealthCheck.UpdateHealthCheckStatus.RssStatuses rss_statuses = 3;
+    optional bool spotter_started = 4;
+    optional .quasar.proto.UpdateHealthCheck.UpdateHealthCheckStatus.MinidumpInfos minidump_infos = 5;
+  }
+
+  optional bool failed = 1;
+  optional .quasar.proto.UpdateHealthCheck.UpdateHealthCheckStatus status = 2;
+}
+
+message RssStatus {
+  optional string daemon = 1;
+  optional bool is_ok = 2;
+}
+
+message MinidumpStatus {
+  optional string daemon = 1;
+  optional string info = 2;
+}
+
+message ForceCheckUpdates {
+  optional uint64 timeout_seconds = 1;
+}
+
+message EqualizerParameters {
+  optional string json_data = 1;
+  optional string config_hash = 2;
+}
+
+message ConfigurationStateHolder {
+  optional .quasar.proto.ConfigurationState state = 1;
+}
+
+message OnMediaErrorHolder {
+  optional .quasar.proto.MediaContentType media_content_type = 1;
+}
+
+message LogMessages {
+  repeated .quasar.proto.LogMessage log_messages = 1;
+  optional uint64 batch_id = 2;
+}
+
+message QuasarMessage {
+  reserved "alice_state";
+  reserved "broken_mic_info";
+  reserved "wifi_list_request";
+  reserved "wifi_list";
+  reserved "wifi_networks_disable";
+  reserved "wifi_networks_enable";
+  reserved "wifi_reassociate";
+  reserved "wifi_connect";
+  reserved "async_wifi_connect";
+  reserved "wifi_connect_response";
+  reserved "media_request";
+  reserved "add_user_request";
+  reserved "add_user_response";
+  reserved "delete_user_request";
+  reserved "delete_user_response";
+  reserved "change_user_request";
+  reserved "issue_auth_code_request";
+  reserved "issue_auth_code_response";
+  reserved "add_user_event";
+  reserved "change_user_event";
+  reserved "delete_user_event";
+  reserved "change_token_event";
+  reserved "owner_startup_info";
+  reserved "all_startup_info";
+  reserved "configuration_mode_ap_up";
+  reserved "metrica_message";
+  reserved "media_message";
+  reserved "recording_event";
+  reserved "app_state";
+  reserved "wifi_status";
+  reserved "critical_update_progress";
+  reserved "no_critical_update_found";
+  reserved "start_critical_update";
+  reserved "child_phrase_end_event";
+  reserved "volumeState";
+  reserved "external_command";
+  reserved "external_command_response";
+  reserved "timers_state";
+  reserved "alarms_state";
+  reserved "set_alarms_state";
+  reserved "watched_video";
+  reserved "current_weather";
+  reserved "current_location";
+  reserved "push_notification";
+  reserved "auth_failed";
+  reserved "reset_wifi";
+  reserved "user_config_update";
+  reserved "subscription_state";
+  reserved "brick_state";
+  reserved "current_timezone";
+  reserved "bluetooth_request";
+  reserved "bluetooth_source_event";
+  reserved "bluetooth_sink_event";
+  reserved "wifi_config_reload";
+  reserved "leader_override";
+  reserved "volume_set_message";
+  reserved "vins_call_response";
+  reserved "device_group_state";
+  reserved "glagold_state";
+  reserved "simple_player_state";
+  reserved "io_event";
+  reserved "io_control";
+  reserved "io_hub_message";
+  reserved "io_audio_channels_data";
+  reserved "io_channel_request";
+  reserved "mordovia_show";
+  reserved "mordovia_command";
+  reserved "configuration_state";
+  reserved "control_request";
+  reserved "onboarding_request";
+  reserved "update_state";
+  reserved "cached_user_config";
+  reserved "audio_inputs";
+  reserved "xiva_websocket_send_binary_message";
+  reserved "xiva_websocket_recv_binary_message";
+  reserved "xiva_websocket_client_state";
+  reserved "subscribe_to_pushd_xiva_websocket_events";
+  reserved "list_xiva_subscriptions";
+  reserved "xiva_subscriptions";
+  reserved "on_media_error";
+  reserved "check_updates";
+  reserved "audio_client_event";
+  reserved "multiroom_broadcast";
+  reserved "ready_to_apply_update";
+  reserved "confirm_update_apply";
+  reserved "postpone_update_apply";
+  reserved "notification_update_event";
+  reserved "ntp_sync_event";
+  reserved "do_not_disturb_event";
+  reserved "setup_credentials_message";
+  reserved "multiroom_directive";
+  reserved "setup_credentials_handling_completed";
+  reserved "encrypted_setup_credentials_message";
+  reserved "setup_status_message";
+  reserved "multiroom_state";
+  reserved "testpoint_message";
+  reserved "service_name_ready";
+  reserved "rcu_event";
+  reserved "rcu_voice_event";
+  reserved "network_status";
+  reserved "reset_network";
+  reserved "networks_disable";
+  reserved "networks_enable";
+  reserved "network_config_reload";
+  reserved "network_stats_command";
+  reserved "network_stats";
+  reserved "refresh_user_event";
+  reserved "auth_token_update_request";
+  reserved "legacy_player_state_changed";
+  reserved "setup_rcu";
+  reserved "setup_rcu_auto";
+  reserved "setup_rcu_check";
+  reserved "setup_rcu_advanced";
+  reserved "setup_rcu_manual";
+  reserved "account_devices_list";
+  reserved "rerequest_devices_list";
+  reserved "led_screen_command";
+  reserved "glagol_cluster_message";
+  reserved "log_message";
+  reserved "glagol_discovery_request";
+  reserved "glagol_discovery_updated";
+  reserved "glagol_discovery_result";
+  reserved "all_startup_settings";
+  reserved "nsd_discovered_item";
+  reserved "nsd_discovered_items";
+  reserved "nsd_lost_item";
+  reserved "nsd_discovered_request";
+  reserved "nsd_disable";
+  reserved "nsd_enable";
+  reserved "nsd_disable_completed";
+  reserved "nsd_guest_mode";
+  reserved "nsd_stereo_pair_follower";
+  reserved "features_config_message";
+  reserved "stereo_pair_message";
+  reserved "volume_manager_message";
+  reserved "spectrogram_animation_message";
+  reserved "alice_message";
+  reserved "call_message";
+  reserved "environment_message";
+  reserved "remoting";
+  reserved "directive";
+  reserved "wifi_turn_off";
+  reserved "wifi_turn_on";
+  reserved "call_action";
+  reserved "backend_request";
+  reserved "backend_response";
+  reserved "update_config_request";
+  reserved "ab_testing_cookies";
+  reserved "vqe_info";
+  reserved "vqe_zone";
+  reserved "audio_error";
+  reserved "update_health_check";
+  reserved "force_check_updates";
+  reserved "database_metrica_message";
+  reserved "audio_storage_event";
+  reserved "rss_status";
+  reserved "equalizer_params";
+  reserved 2;
+  reserved 9;
+  reserved 10;
+  reserved 14;
+  reserved 15;
+  reserved 16;
+  reserved 17;
+  reserved 18;
+  reserved 20;
+  reserved 21;
+  reserved 22;
+  reserved 23;
+  reserved 25;
+  reserved 26;
+  reserved 28;
+  reserved 29;
+  reserved 31;
+  reserved 34;
+  reserved 39;
+  reserved 40;
+  reserved 43;
+  reserved 49;
+  reserved 50;
+  reserved 52;
+  reserved 54;
+  reserved 66;
+  reserved 70;
+  reserved 73;
+  reserved 75;
+  reserved 76;
+  reserved 79;
+  reserved 83;
+  reserved 86;
+  reserved 87;
+  reserved 90;
+  reserved 91;
+  reserved 92;
+  reserved 93;
+  reserved 94;
+  reserved 99;
+  reserved 102;
+  reserved 107;
+  reserved 109;
+  reserved 110;
+  reserved 111;
+  reserved 120;
+  reserved 121;
+  reserved 122;
+  reserved 123;
+  reserved 125;
+  reserved 113;
+  reserved 133;
+  reserved 144;
+  reserved 147;
+  reserved 155;
+  reserved 156;
+  reserved 168;
+  reserved 172;
+  reserved 178;
+  reserved 218;
+  reserved 224;
+  reserved 225;
+  reserved 226;
+  reserved 228;
+  reserved 238;
+  reserved 239;
+  reserved 254 to 18999;
+  reserved 20000 to max;
+  reserved 3;
+  reserved 112;
+  reserved 4;
+  reserved 5;
+  reserved 30;
+  reserved 105;
+  reserved 249;
+  reserved 6;
+  reserved 64;
+  reserved 7;
+  reserved 8;
+  reserved 11;
+  reserved 12;
+  reserved 216;
+  reserved 217;
+  reserved 97;
+  reserved 242;
+  reserved 243;
+  reserved 219;
+  reserved 13;
+  reserved 220;
+  reserved 100;
+  reserved 221;
+  reserved 222;
+  reserved 89;
+  reserved 24;
+  reserved 27;
+  reserved 32;
+  reserved 33;
+  reserved 35;
+  reserved 36;
+  reserved 37;
+  reserved 38;
+  reserved 41;
+  reserved 42;
+  reserved 44;
+  reserved 45;
+  reserved 46;
+  reserved 47;
+  reserved 208;
+  reserved 51;
+  reserved 53;
+  reserved 55;
+  reserved 57;
+  reserved 59;
+  reserved 60;
+  reserved 63;
+  reserved 65;
+  reserved 235;
+  reserved 67;
+  reserved 69;
+  reserved 71;
+  reserved 72;
+  reserved 74;
+  reserved 77;
+  reserved 78;
+  reserved 80;
+  reserved 81;
+  reserved 82;
+  reserved 84;
+  reserved 85;
+  reserved 88;
+  reserved 183;
+  reserved 158;
+  reserved 159;
+  reserved 95;
+  reserved 96;
+  reserved 98;
+  reserved 101;
+  reserved 103;
+  reserved 104;
+  reserved 106;
+  reserved 108;
+  reserved 114;
+  reserved 115;
+  reserved 116;
+  reserved 117;
+  reserved 118;
+  reserved 119;
+  reserved 124;
+  reserved 126;
+  reserved 127;
+  reserved 128;
+  reserved 130;
+  reserved 131;
+  reserved 132;
+  reserved 134;
+  reserved 135;
+  reserved 136;
+  reserved 137;
+  reserved 138;
+  reserved 223;
+  reserved 140;
+  reserved 141;
+  reserved 142;
+  reserved 139;
+  reserved 143;
+  reserved 145;
+  reserved 146;
+  reserved 148;
+  reserved 149;
+  reserved 150;
+  reserved 151;
+  reserved 152;
+  reserved 154;
+  reserved 157;
+  reserved 160;
+  reserved 161;
+  reserved 162;
+  reserved 163;
+  reserved 164;
+  reserved 165;
+  reserved 166;
+  reserved 241;
+  reserved 240;
+  reserved 167;
+  reserved 171;
+  reserved 173;
+  reserved 153;
+  reserved 174;
+  reserved 175;
+  reserved 176;
+  reserved 177;
+  reserved 179;
+  reserved 189;
+  reserved 180;
+  reserved 181;
+  reserved 184;
+  reserved 185;
+  reserved 186;
+  reserved 187;
+  reserved 188;
+  reserved 190;
+  reserved 191;
+  reserved 192;
+  reserved 193;
+  reserved 194;
+  reserved 195;
+  reserved 196;
+  reserved 199;
+  reserved 202;
+  reserved 197;
+  reserved 198;
+  reserved 200;
+  reserved 201;
+  reserved 204;
+  reserved 205;
+  reserved 206;
+  reserved 209;
+  reserved 207;
+  reserved 210;
+  reserved 211;
+  reserved 213;
+  reserved 214;
+  reserved 229;
+  reserved 230;
+  reserved 231;
+  reserved 232;
+  reserved 233;
+  reserved 248;
+  reserved 234;
+  reserved 244;
+  reserved 245;
+  reserved 246;
+  reserved 247;
+  reserved 250;
+  reserved 251;
+  enum Type {
+    reserved "TYPE_EXTERNAL_COMMAND";
+    reserved "TYPE_EXTERNAL_COMMAND_RESPONSE";
+    reserved "TYPE_GLAGOL_CLUSTER_SIGN";
+    reserved "TYPE_ALL_STARTUP_SETTINGS";
+    reserved "TYPE_NSD_DISCOVERED_REQUEST";
+    reserved "TYPE_NSD_GUEST_MODE";
+    reserved "TYPE_PUSH_NOTIFICATION";
+    reserved "TYPE_XIVA_WEBSOCKET_SEND_BINARY_MESSAGE";
+    reserved "TYPE_XIVA_WEBSOCKET_RECV_BINARY_MESSAGE";
+    reserved "TYPE_XIVA_WEBSOCKET_CLIENT_STATE";
+    reserved "TYPE_SUBSCRIBE_TO_PUSHD_XIVA_WEBSOCKET_EVENTS";
+    reserved "TYPE_LIST_XIVA_SUBSCRIPTIONS";
+    reserved "TYPE_XIVA_SUBSCRIPTIONS";
+    reserved 44;
+    reserved 45;
+    reserved 57;
+    reserved 114;
+    reserved 115;
+    reserved 116;
+    reserved 117;
+    reserved 118;
+    reserved 119;
+    reserved 182;
+    reserved 188;
+    reserved 193;
+    reserved 199;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_ALICE_STATE = 3 [(.quasar.proto.payload_type) = "quasar.proto.AliceState"];
+    TYPE_WIFI_LIST_REQUEST = 4 [(.quasar.proto.payload_type) = "void"];
+    TYPE_WIFI_LIST = 5 [(.quasar.proto.payload_type) = "quasar.proto.WifiList"];
+    TYPE_WIFI_CONNECT = 6 [(.quasar.proto.payload_type) = "quasar.proto.WifiConnect"];
+    TYPE_WIFI_CONNECT_RESPONSE = 7 [(.quasar.proto.payload_type) = "quasar.proto.WifiConnectResponse"];
+    TYPE_MEDIA_REQUEST = 8 [(.quasar.proto.payload_type) = "quasar.proto.MediaRequest"];
+    TYPE_ADD_USER_REQUEST = 11 [(.quasar.proto.payload_type) = "quasar.proto.AddUserRequest"];
+    TYPE_ADD_USER_RESPONSE = 12 [(.quasar.proto.payload_type) = "quasar.proto.AddUserResponse"];
+    TYPE_CHANGE_USER_EVENT = 13 [(.quasar.proto.payload_type) = "quasar.proto.AuthEvent"];
+    TYPE_METRICA_MESSAGE = 24;
+    TYPE_MEDIA_MESSAGE = 27 [(.quasar.proto.payload_type) = "quasar.proto.MediaMessage"];
+    TYPE_WIFI_NETWORKS_DISABLE = 30 [(.quasar.proto.payload_type) = "void"];
+    TYPE_APP_STATE = 33 [(.quasar.proto.payload_type) = "quasar.proto.AppState"];
+    TYPE_WIFI_STATUS = 35 [(.quasar.proto.payload_type) = "quasar.proto.WifiStatus"];
+    TYPE_CRITICAL_UPDATE_PROGRESS = 36 [(.quasar.proto.payload_type) = "quasar.proto.UpdateProgress"];
+    TYPE_NO_CRITICAL_UPDATE_FOUND = 37 [(.quasar.proto.payload_type) = "void"];
+    TYPE_START_CRITICAL_UPDATE = 38 [(.quasar.proto.payload_type) = "void"];
+    TYPE_VOLUME_STATE = 42;
+    TYPE_TIMERS_STATE = 46 [(.quasar.proto.payload_type) = "quasar.proto.TimersState"];
+    TYPE_ALARMS_STATE = 47 [(.quasar.proto.payload_type) = "quasar.proto.AlarmsState"];
+    TYPE_WATCHED_VIDEO = 51 [(.quasar.proto.payload_type) = "quasar.proto.WatchedVideoState"];
+    TYPE_CURRENT_LOCATION = 55 [(.quasar.proto.payload_type) = "quasar.proto.Location"];
+    TYPE_RESET_WIFI = 60 [(.quasar.proto.payload_type) = "void"];
+    TYPE_USER_CONFIG_UPDATE = 63 [(.quasar.proto.payload_type) = "quasar.proto.UserConfig"];
+    TYPE_ASYNC_WIFI_CONNECT = 64 [(.quasar.proto.payload_type) = "quasar.proto.WifiConnect"];
+    TYPE_CURRENT_TIMEZONE = 67 [(.quasar.proto.payload_type) = "quasar.proto.Timezone"];
+    TYPE_BLUETOOTH_REQUEST = 69 [(.quasar.proto.payload_type) = "quasar.proto.BluetoothRequest"];
+    TYPE_BLUETOOTH_SOURCE_EVENT = 71 [(.quasar.proto.payload_type) = "quasar.proto.BluetoothSourceEvent"];
+    TYPE_BLUETOOTH_SINK_EVENT = 72 [(.quasar.proto.payload_type) = "quasar.proto.BluetoothSinkEvent"];
+    TYPE_WIFI_CONFIG_RELOAD = 74 [(.quasar.proto.payload_type) = "void"];
+    TYPE_LEADER_OVERRIDE = 77 [(.quasar.proto.payload_type) = "quasar.proto.LeaderOverride"];
+    TYPE_VOLUME_SET_MESSAGE = 78 [(.quasar.proto.payload_type) = "quasar.proto.VolumeSetMessage"];
+    TYPE_VINS_CALL_RESPONSE = 80 [(.quasar.proto.payload_type) = "quasar.proto.VinsCallResponse"];
+    TYPE_DEVICE_GROUP_STATE = 81;
+    TYPE_GLAGOLD_STATE = 82 [(.quasar.proto.payload_type) = "quasar.proto.GlagoldState"];
+    TYPE_SIMPLE_PLAYER_STATE = 84 [(.quasar.proto.payload_type) = "quasar.proto.SimplePlayerState"];
+    TYPE_IO_EVENT = 85 [(.quasar.proto.payload_type) = "quasar.proto.IOEvent"];
+    TYPE_IO_CONTROL = 88 [(.quasar.proto.payload_type) = "quasar.proto.IOControlCommand"];
+    TYPE_CONFIGURATION_MODE_AP_UP = 89 [(.quasar.proto.payload_type) = "void"];
+    TYPE_MORDOVIA_SHOW = 95 [(.quasar.proto.payload_type) = "quasar.proto.MordoviaShowMessage"];
+    TYPE_MORDOVIA_COMMAND = 96 [(.quasar.proto.payload_type) = "quasar.proto.MordoviaCommandMessage"];
+    TYPE_CHANGE_USER_REQUEST = 97 [(.quasar.proto.payload_type) = "quasar.proto.ChangeUserRequest"];
+    TYPE_CONFIGURATION_STATE = 98 [(.quasar.proto.payload_type) = "quasar.proto.ConfigurationStateHolder"];
+    TYPE_CHANGE_TOKEN_EVENT = 100 [(.quasar.proto.payload_type) = "quasar.proto.AuthEvent"];
+    TYPE_CONTROL_REQUEST = 101 [(.quasar.proto.payload_type) = "quasar.proto.ControlRequest"];
+    TYPE_ONBOARDING_REQUEST = 103 [(.quasar.proto.payload_type) = "quasar.proto.OnboardingRequest"];
+    TYPE_UPDATE_STATE = 104 [(.quasar.proto.payload_type) = "quasar.proto.UpdateState"];
+    TYPE_WIFI_NETWORKS_ENABLE = 105 [(.quasar.proto.payload_type) = "void"];
+    TYPE_BROKEN_MIC_INFO = 112 [(.quasar.proto.payload_type) = "quasar.proto.BrokenMicInfo"];
+    TYPE_ON_MEDIA_ERROR = 124 [(.quasar.proto.payload_type) = "quasar.proto.OnMediaErrorHolder"];
+    TYPE_CHECK_UPDATES = 126 [(.quasar.proto.payload_type) = "void"];
+    TYPE_AUDIO_CLIENT_EVENT = 127 [(.quasar.proto.payload_type) = "quasar.proto.AudioClientEvent"];
+    TYPE_MULTIROOM_BROADCAST = 128 [(.quasar.proto.payload_type) = "quasar.proto.MultiroomBroadcast"];
+    TYPE_READY_TO_APPLY_UPDATE = 130 [(.quasar.proto.payload_type) = "void"];
+    TYPE_CONFIRM_UPDATE_APPLY = 131 [(.quasar.proto.payload_type) = "void"];
+    TYPE_POSTPONE_UPDATE_APPLY = 132 [(.quasar.proto.payload_type) = "void"];
+    TYPE_NOTIFICATION_UPDATE_EVENT = 134 [(.quasar.proto.payload_type) = "quasar.proto.NotificationUpdateEvent"];
+    TYPE_NTP_SYNC_EVENT = 143 [(.quasar.proto.payload_type) = "quasar.proto.NtpSyncEvent"];
+    TYPE_SETUP_CREDENTIALS_MESSAGE = 146 [(.quasar.proto.payload_type) = "quasar.proto.SetupCredentialsMessage"];
+    TYPE_MULTIROOM_DIRECTIVE = 148 [(.quasar.proto.payload_type) = "quasar.proto.MultiroomDirective"];
+    TYPE_SETUP_CREDENTIALS_HANDLING_COMPLETED = 149 [(.quasar.proto.payload_type) = "void"];
+    TYPE_ENCRYPTED_SETUP_CREDENTIALS_MESSAGE = 150 [(.quasar.proto.payload_type) = "quasar.proto.EncryptedSetupCredentialsMessage"];
+    TYPE_SETUP_STATUS_MESSAGE = 151 [(.quasar.proto.payload_type) = "quasar.proto.SetupStatusMessage"];
+    TYPE_MULTIROOM_STATE = 152 [(.quasar.proto.payload_type) = "quasar.proto.MultiroomState"];
+    TYPE_SETUP_RCU = 153 [(.quasar.proto.payload_type) = "void"];
+    TYPE_TESTPOINT_MESSAGE = 154 [(.quasar.proto.payload_type) = "quasar.proto.TestpointMessage"];
+    TYPE_SERVICE_NAME_READY = 157 [(.quasar.proto.payload_type) = "std::string"];
+    TYPE_IO_AUDIO_CHANNELS_DATA = 158 [(.quasar.proto.payload_type) = "quasar.proto.IOAudioChannelsData"];
+    TYPE_IO_CHANNEL_REQUEST = 159 [(.quasar.proto.payload_type) = "quasar.proto.IOChannelRequest"];
+    TYPE_NETWORK_STATUS = 162 [(.quasar.proto.payload_type) = "quasar.proto.NetworkStatus"];
+    TYPE_RESET_NETWORK = 163 [(.quasar.proto.payload_type) = "void"];
+    TYPE_NETWORKS_DISABLE = 164 [(.quasar.proto.payload_type) = "void"];
+    TYPE_NETWORKS_ENABLE = 165 [(.quasar.proto.payload_type) = "void"];
+    TYPE_NETWORK_CONFIG_RELOAD = 166 [(.quasar.proto.payload_type) = "void"];
+    TYPE_REFRESH_USER_EVENT = 167 [(.quasar.proto.payload_type) = "quasar.proto.AuthEvent"];
+    TYPE_AUTH_TOKEN_UPDATE_REQUEST = 171 [(.quasar.proto.payload_type) = "quasar.proto.AuthTokenUpdateRequest"];
+    TYPE_LEGACY_PLAYER_STATE_CHANGED = 173;
+    TYPE_SETUP_RCU_AUTO = 174 [(.quasar.proto.payload_type) = "quasar.proto.SetupRcuAutoEvent"];
+    TYPE_SETUP_RCU_CHECK = 175 [(.quasar.proto.payload_type) = "void"];
+    TYPE_SETUP_RCU_ADVANCED = 176 [(.quasar.proto.payload_type) = "void"];
+    TYPE_SETUP_RCU_MANUAL = 177 [(.quasar.proto.payload_type) = "void"];
+    TYPE_LED_SCREEN_COMMAND = 180 [(.quasar.proto.payload_type) = "quasar.proto.LedScreenCommand"];
+    TYPE_GLAGOL_CLUSTER_MESSAGE = 181 [(.quasar.proto.payload_type) = "quasar.proto.GlagolClusterMessage"];
+    TYPE_IO_HUB_MESSAGE = 183 [(.quasar.proto.payload_type) = "quasar.proto.IOHubMessage"];
+    TYPE_LOG_MESSAGE = 184 [(.quasar.proto.payload_type) = "quasar.proto.LogMessage"];
+    TYPE_GLAGOL_DISCOVERY_REQUEST = 185 [(.quasar.proto.payload_type) = "quasar.proto.GlagolDiscoveryRequest"];
+    TYPE_GLAGOL_DISCOVERY_UPDATED = 186 [(.quasar.proto.payload_type) = "void"];
+    TYPE_GLAGOL_DISCOVERY_RESULT = 187 [(.quasar.proto.payload_type) = "quasar.proto.GlagolDiscoveryResult"];
+    TYPE_NSD_DISCOVERED_ITEM = 190 [(.quasar.proto.payload_type) = "quasar.proto.NsdInfo"];
+    TYPE_NSD_DISCOVERED_ITEMS = 191 [(.quasar.proto.payload_type) = "quasar.proto.NsdInfoList"];
+    TYPE_NSD_LOST_ITEM = 192 [(.quasar.proto.payload_type) = "quasar.proto.NsdInfo"];
+    TYPE_NSD_DISABLE = 194 [(.quasar.proto.payload_type) = "void"];
+    TYPE_NSD_ENABLE = 195 [(.quasar.proto.payload_type) = "quasar.proto.NsdEnable"];
+    TYPE_NSD_DISABLE_COMPLETED = 196 [(.quasar.proto.payload_type) = "void"];
+    TYPE_STEREO_PAIR_MESSAGE = 198 [(.quasar.proto.payload_type) = "quasar.proto.StereoPair"];
+    TYPE_SPECTROGRAM_ANIMATION_MESSAGE = 201 [(.quasar.proto.payload_type) = "quasar.proto.SpectrogramAnimation"];
+    TYPE_ALICE_MESSAGE = 204 [(.quasar.proto.payload_type) = "quasar.proto.Alice"];
+    TYPE_ENVIRONMENT_MESSAGE = 207 [(.quasar.proto.payload_type) = "quasar.proto.EnvironmentMessage"];
+    TYPE_SET_ALARMS_STATE = 208 [(.quasar.proto.payload_type) = "quasar.proto.TimersState"];
+    TYPE_REMOTING = 210 [(.quasar.proto.payload_type) = "quasar.proto.Remoting"];
+    TYPE_DIRECTIVE = 211 [(.quasar.proto.payload_type) = "quasar.proto.Directive"];
+    TYPE_DELETE_USER_REQUEST = 216 [(.quasar.proto.payload_type) = "quasar.proto.DeleteUserRequest"];
+    TYPE_DELETE_USER_RESPONSE = 217 [(.quasar.proto.payload_type) = "quasar.proto.DeleteUserResponse"];
+    TYPE_ADD_USER_EVENT = 219 [(.quasar.proto.payload_type) = "quasar.proto.AuthEvent"];
+    TYPE_DELETE_USER_EVENT = 220 [(.quasar.proto.payload_type) = "quasar.proto.AuthEvent"];
+    TYPE_OWNER_STARTUP_INFO = 221 [(.quasar.proto.payload_type) = "quasar.proto.OwnerStartupInfo"];
+    TYPE_ALL_STARTUP_INFO = 222 [(.quasar.proto.payload_type) = "quasar.proto.AllStartupInfo"];
+    TYPE_BACKEND_REQUEST = 229 [(.quasar.proto.payload_type) = "quasar.proto.BackendRequest"];
+    TYPE_BACKEND_RESPONSE = 230 [(.quasar.proto.payload_type) = "quasar.proto.BackendResponse"];
+    TYPE_VQE_INFO = 233 [(.quasar.proto.payload_type) = "quasar.proto.VqeInfo"];
+    TYPE_AUDIO_ERROR = 234 [(.quasar.proto.payload_type) = "void"];
+    TYPE_BRICK_STATE = 235 [(.quasar.proto.payload_type) = "quasar.proto.BrickState"];
+    TYPE_CONFIG_CAPABILITY_EVENTS = 236 [(.quasar.proto.payload_type) = "quasar.proto.ConfigCapabilityEvents"];
+    TYPE_CONFIG_CAPABILITY_SUBSCRIPTIONS = 237 [(.quasar.proto.payload_type) = "quasar.proto.ConfigCapabilitySubscriptions"];
+    TYPE_NETWORK_STATS = 240 [(.quasar.proto.payload_type) = "quasar.proto.NetworkStats"];
+    TYPE_NETWORK_STATS_COMMAND = 241 [(.quasar.proto.payload_type) = "quasar.proto.NetworkStatsCommand"];
+    TYPE_ISSUE_AUTH_CODE_REQUEST = 242 [(.quasar.proto.payload_type) = "quasar.proto.IssueAuthCodeRequest"];
+    TYPE_ISSUE_AUTH_CODE_RESPONSE = 243 [(.quasar.proto.payload_type) = "quasar.proto.IssueAuthCodeResponse"];
+    TYPE_UPDATE_HEALTH_CHECK = 244 [(.quasar.proto.payload_type) = "quasar.proto.UpdateHealthCheck"];
+    TYPE_FORCE_CHECK_UPDATES = 245 [(.quasar.proto.payload_type) = "quasar.proto.ForceCheckUpdates"];
+    TYPE_DATABASE_METRICA_MESSAGE = 246 [(.quasar.proto.payload_type) = "quasar.proto.DatabaseMetricaEvent"];
+    TYPE_AUDIO_STORAGE_EVENT = 247 [(.quasar.proto.payload_type) = "quasar.proto.AudioStorageEvent"];
+    TYPE_VQE_ZONE = 248 [(.quasar.proto.payload_type) = "std::string"];
+    TYPE_WIFI_REASSOCIATE = 249 [(.quasar.proto.payload_type) = "void"];
+    TYPE_RSS_STATUS = 250 [(.quasar.proto.payload_type) = "quasar.proto.RssStatus"];
+    TYPE_EQUALIZER_PARAMS = 251 [(.quasar.proto.payload_type) = "quasar.proto.EqualizerParameters"];
+    TYPE_WIFI_REPORT = 252 [(.quasar.proto.payload_type) = "void"];
+    TYPE_MINIDUMP_STATUS = 254 [(.quasar.proto.payload_type) = "quasar.proto.MinidumpStatus"];
+    TYPE_VINYL_JOG_WHEEL_EVENT = 255;
+    TYPE_LOG_MESSAGES = 256 [(.quasar.proto.payload_type) = "quasar.proto.LogMessages"];
+    TYPE_REMOTE_AUDIO_SOURCE = 257 [(.quasar.proto.payload_type) = "quasar.proto.RemoteAudioSourceMessage"];
+  }
+
+  optional string request_id = 1;
+  optional bytes payload = 252;
+  optional .quasar.proto.QuasarMessage.Type type = 253;
+  optional .quasar.proto.GlagolClusterSign glagol_cluster_sign = 182;
+  optional .quasar.proto.ConfigCapabilityEvents config_capability_events = 236;
+  optional .quasar.proto.ConfigCapabilitySubscriptions config_capability_subscriptions = 237;
+}
+

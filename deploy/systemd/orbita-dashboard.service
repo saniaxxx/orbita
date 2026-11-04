@@ -1,0 +1,17 @@
+[Unit]
+Description=orbita-dashboard: pipeline view and metrics (Rust)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=LISTEN=0.0.0.0:8901
+Environment=DEMO=0
+ExecStart=/opt/orbita/target/release/orbita-dashboard --listen 0.0.0.0:8901 --no-demo
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

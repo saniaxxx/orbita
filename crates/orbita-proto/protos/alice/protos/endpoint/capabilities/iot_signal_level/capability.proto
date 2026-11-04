@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "SignalLevelCapabilityProto";
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_signal_level;iotsignallevelpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TSignalLevelCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = SignalLevelCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSignalLevelCapability.ESignalValueType SignalValueType = 1 [json_name = "signal_value_type", (.NYT.column_name) = "signal_value_type"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    .NAlice.TSignalLevelCapability.ESignalQualityStatus Status = 1 [json_name = "status", (.NYT.column_name) = "status"];
+    optional int32 Rssi = 2 [json_name = "rssi", (.NYT.column_name) = "rssi"];
+    optional uint32 Lqa = 3 [json_name = "lqa", (.NYT.column_name) = "lqa"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = SignalLevelUpdateStateEventType;
+    .NAlice.TSignalLevelCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum ESignalValueType {
+    SignalValueTypeUnknown = 0;
+    SignalValueTypeStatus = 1;
+    SignalValueTypeRawRssi = 2;
+    SignalValueTypeRawLqa = 3;
+  }
+
+  enum ESignalQualityStatus {
+    UNKNOWN = 0;
+    BAD = 1;
+    WEAK = 2;
+    OK = 3;
+    GOOD = 4;
+    EXCELLENT = 5;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TSignalLevelCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TSignalLevelCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package proto;
+
+import "smart_devices/libs/matter/model/proto/device.proto";
+
+message MatterNetworkDump {
+  map<string, .proto.MatterDevice> devices = 1;
+  map<string, bytes> chip_data = 2;
+}
+

@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "TIotZoneCapabilityProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/iot_zone;zonepb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "alice/protos/data/iot/geometry.proto";
+
+message TIotZoneCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = IotZoneCapabilityType;
+  message TZone {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    uint32 ID = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    bool Enabled = 2 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+    bool Mutable = 5 [json_name = "mutable", (.NYT.column_name) = "mutable"];
+    .NAlice.TIotZoneCapability.EZoneType Type = 3 [json_name = "type", (.NYT.column_name) = "type"];
+    .NAlice.NIot.TZoneShape Shape = 4 [json_name = "shape", (.NYT.column_name) = "shape"];
+  }
+
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    optional uint32 MaxPresenceOccupancyZonesCount = 1 [json_name = "max_presence_occupancy_zones_count", (.NYT.column_name) = "max_presence_occupancy_zones_count"];
+    optional uint32 MaxPresenceNoiseZonesCount = 2 [json_name = "max_presence_noise_zones_count", (.NYT.column_name) = "max_presence_noise_zones_count"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TIotZoneCapability.TZone Zones = 1 [json_name = "zones", (.NYT.column_name) = "zones"];
+  }
+
+  message TIotCreateZoneDirective {
+    option (.NAlice.SpeechKitName) = "iot_create_zone_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotCreateZoneDirectiveType;
+    .NAlice.TIotZoneCapability.EZoneType Type = 1 [json_name = "type", (.NYT.column_name) = "type"];
+    .NAlice.NIot.TZoneShape Shape = 2 [json_name = "shape", (.NYT.column_name) = "shape"];
+    bool Enabled = 3 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+  }
+
+  message TIotUpdateZoneDirective {
+    option (.NAlice.SpeechKitName) = "iot_update_zone_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotUpdateZoneDirectiveType;
+    uint32 ID = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    .NAlice.NIot.TZoneShape Shape = 2 [json_name = "shape", (.NYT.column_name) = "shape"];
+  }
+
+  message TIotDeleteZoneDirective {
+    option (.NAlice.SpeechKitName) = "iot_delete_zone_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotDeleteZoneDirectiveType;
+    uint32 ID = 1 [json_name = "id", (.NYT.column_name) = "id"];
+  }
+
+  message TIotToggleZoneDirective {
+    option (.NAlice.SpeechKitName) = "iot_toggle_zone_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = IotToggleZoneDirectiveType;
+    uint32 ID = 1 [json_name = "id", (.NYT.column_name) = "id"];
+    bool Enabled = 2 [json_name = "enabled", (.NYT.column_name) = "enabled"];
+  }
+
+  message TUpdateStateEvent {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.EventType) = IotZoneUpdateStateEventType;
+    .NAlice.TIotZoneCapability Capability = 1 [json_name = "capability", (.NYT.column_name) = "capability"];
+  }
+
+  enum EZoneType {
+    UnknownZoneType = 0;
+    PresenceOccupancyZoneType = 1;
+    PresenceNoiseZoneType = 2;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TIotZoneCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TIotZoneCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

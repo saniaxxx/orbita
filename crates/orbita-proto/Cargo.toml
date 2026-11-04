@@ -1,0 +1,16 @@
+[package]
+name = "orbita-proto"
+version.workspace = true
+edition.workspace = true
+# Generated bindings for the GPL-3.0 quasar-server proto tree.
+license = "GPL-3.0-only"
+rust-version.workspace = true
+description = "prost bindings for the Yandex AAPI protobufs used by quasar-server"
+
+[dependencies]
+prost = "0.14"
+prost-types = "0.14"
+
+[build-dependencies]
+prost-build = "0.14"
+protoc-bin-vendored = "3.3"

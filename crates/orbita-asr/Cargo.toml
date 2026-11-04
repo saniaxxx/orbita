@@ -1,0 +1,39 @@
+[package]
+name = "orbita-asr"
+version.workspace = true
+edition.workspace = true
+# Port of the MPL-2.0 quasistreaming-gigam service.
+license = "MPL-2.0"
+rust-version.workspace = true
+description = "Streaming ASR: VAD endpointing and the GigaAM WebSocket protocol"
+
+[[bin]]
+name = "orbita-asr"
+path = "src/main.rs"
+
+[features]
+default = ["gigaam"]
+# GigaAM v3 on ONNX Runtime (CPU execution provider).
+gigaam = ["dep:ort"]
+# CUDA execution provider; pair with `load-dynamic` on the GPU host.
+cuda = ["gigaam", "ort/cuda"]
+# Load libonnxruntime at run time from ORT_DYLIB_PATH instead of linking it.
+load-dynamic = ["gigaam", "ort/load-dynamic"]
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+futures-util.workspace = true
+orbita-core = { path = "../orbita-core" }
+ort = { workspace = true, optional = true }
+regex.workspace = true
+rustfft.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite.workspace = true

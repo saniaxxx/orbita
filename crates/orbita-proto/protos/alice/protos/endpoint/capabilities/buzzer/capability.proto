@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package NAlice;
+
+option java_package = "ru.yandex.alice.protos.endpoint.capabilities";
+option java_outer_classname = "BuzzerCapabilityProto";
+option java_multiple_files = true;
+option go_package = "a.yandex-team.ru/alice/protos/endpoint/capabilities/buzzer;buzzerpb";
+
+import "google/protobuf/descriptor.proto";
+import "alice/protos/endpoint/capability.proto";
+import "alice/protos/extensions/extensions.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TBuzzerCapability {
+  option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  option (.NAlice.CapabilityType) = BuzzerCapabilityType;
+  message TParameters {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    repeated .NAlice.TBuzzerCapability.ESoundFormat SupportedSoundFormats = 1 [json_name = "supported_sound_formats", (.NYT.column_name) = "supported_sound_formats"];
+  }
+
+  message TState {
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+  }
+
+  message TSound {
+    oneof Sound {
+      option (.NYT.variant_field_name) = "sound";
+      bytes Midi = 1 [json_name = "midi", (.NYT.column_name) = "midi"];
+    }
+  }
+
+  message TPlayDirective {
+    option (.NAlice.SpeechKitName) = "buzzer_play_directive";
+    option (.NYT.default_field_flags) = SERIALIZATION_YT;
+    option (.NAlice.DirectiveType) = BuzzerPlayDirectiveType;
+    string Name = 1000 [json_name = "name", (.NYT.column_name) = "name"];
+    .NAlice.TBuzzerCapability.TSound Sound = 1 [json_name = "sound", (.NYT.column_name) = "sound"];
+  }
+
+  enum ESoundFormat {
+    Unknown = 0;
+    Midi = 1;
+  }
+
+  .NAlice.TCapability.TMeta Meta = 1 [json_name = "meta", (.NYT.column_name) = "meta"];
+  .NAlice.TBuzzerCapability.TParameters Parameters = 2 [json_name = "parameters", (.NYT.column_name) = "parameters"];
+  .NAlice.TBuzzerCapability.TState State = 3 [json_name = "state", (.NYT.column_name) = "state"];
+}
+

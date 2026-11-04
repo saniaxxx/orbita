@@ -1,0 +1,28 @@
+[package]
+name = "orbita-station-sim"
+version.workspace = true
+edition.workspace = true
+license = "GPL-3.0-only"
+rust-version.workspace = true
+description = "A Yandex Station simulator speaking AAPI to quasar-server"
+
+[[bin]]
+name = "orbita-station-sim"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.22"
+futures-util.workspace = true
+orbita-core = { path = "../orbita-core" }
+orbita-proto = { path = "../orbita-proto" }
+prost = "0.14"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-util", "io-std"] }
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
