@@ -13,7 +13,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
 };
 use chrono::Utc;
 use futures_util::SinkExt;
@@ -35,6 +35,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/process", get(websocket))
+        .route("/pending", get(pending_actions))
+        .route("/confirm", post(confirm_action))
         .with_state(state)
 }
 
@@ -44,6 +46,31 @@ async fn health(State(state): State<Arc<AppState>>) -> Json<Value> {
         "service": "agent",
         "model": state.model,
     }))
+}
+
+async fn pending_actions(State(state): State<Arc<AppState>>) -> Json<Value> {
+    match state.agent.home() {
+        Some(home) => Json(home.pending().await),
+        None => Json(json!([])),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ConfirmBody {
+    code: String,
+}
+
+async fn confirm_action(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ConfirmBody>,
+) -> Json<Value> {
+    let Some(home) = state.agent.home() else {
+        return Json(json!({"status": "error", "error": "home control is disabled"}));
+    };
+    match home.confirm(&body.code).await {
+        Ok(description) => Json(json!({"status": "ok", "done": description})),
+        Err(error) => Json(json!({"status": "error", "error": error})),
+    }
 }
 
 async fn websocket(

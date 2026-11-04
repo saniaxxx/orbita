@@ -55,6 +55,10 @@ impl Agent {
         self
     }
 
+    pub fn home(&self) -> Option<&Arc<crate::home::HomeService>> {
+        self.home.as_ref()
+    }
+
     /// Warm the provider connection and its prompt cache before the first
     /// real utterance (the first call after a restart can take seconds).
     pub async fn warm_up(&self) {
@@ -105,7 +109,10 @@ impl Agent {
             }
             if let Some(command) = home.parse(text) {
                 return match home.execute(&command).await {
-                    Ok(()) => Ok(Outcome::text(&command.reply)),
+                    Ok(crate::home::HomeOutcome::Done(reply))
+                    | Ok(crate::home::HomeOutcome::NeedsConfirmation { reply }) => {
+                        Ok(Outcome::text(reply))
+                    }
                     Err(error) => {
                         tracing::warn!(%error, "home command failed");
                         Ok(Outcome::text(format!("Не получилось: {error}")))
@@ -250,9 +257,16 @@ impl Agent {
                     unreachable!("tool_calls only contains ToolCall");
                 };
                 let started = std::time::Instant::now();
-                let result = match self.mcp.as_ref() {
-                    Some(mcp) => mcp.call(&name, &arguments).await,
-                    None => Err("MCP is not configured".to_owned()),
+                let home_result = match self.home.as_deref() {
+                    Some(home) => home.call_tool(&name, &arguments).await,
+                    None => None,
+                };
+                let result = match home_result {
+                    Some(result) => result,
+                    None => match self.mcp.as_ref() {
+                        Some(mcp) => mcp.call(&name, &arguments).await,
+                        None => Err("MCP is not configured".to_owned()),
+                    },
                 };
                 match &result {
                     Ok(value) => tracing::info!(
@@ -317,6 +331,10 @@ impl Agent {
                 prompt.push('\n');
                 prompt.push_str(&tools);
             }
+        }
+        if let Some(home) = self.home.as_deref() {
+            prompt.push('\n');
+            prompt.push_str(&home.prompt());
         }
         prompt
     }
@@ -467,7 +485,9 @@ fn calls_to_actions(
                 name: name.to_owned(),
                 arguments,
             });
-        } else if mcp.is_some_and(|mcp| mcp.has_tool(name)) {
+        } else if mcp.is_some_and(|mcp| mcp.has_tool(name))
+            || matches!(name, "home_list" | "home_get" | "home_set")
+        {
             actions.push(Action::ToolCall {
                 name: name.to_owned(),
                 arguments,
