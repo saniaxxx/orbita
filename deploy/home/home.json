@@ -1,0 +1,596 @@
+{
+  "mqtt": {
+    "url": "mqtt://192.168.250.110:1883",
+    "client_id": "orbita-home",
+    "username": null,
+    "password": null
+  },
+  "stale_after_ms": 30000,
+  "rate_limit_per_min": 60,
+  "devices": [
+    {
+      "id": "wb-mr6cv3_93_k1",
+      "room": "детская",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_93/K1",
+      "aliases": [
+        "детская",
+        "свет детская"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_93/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_93/controls/K1",
+          "command_topic": "/devices/wb-mr6cv3_93/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_93_k2",
+      "room": "гостинная",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_93/K2",
+      "aliases": [
+        "гостинная",
+        "свет гостинная"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_93/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_93/controls/K2",
+          "command_topic": "/devices/wb-mr6cv3_93/controls/K2/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k1",
+      "room": "кабинет",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K1",
+      "aliases": [
+        "кабинет",
+        "свет кабинет"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K1",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k2",
+      "room": "спальня",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K2",
+      "aliases": [
+        "свет спальня",
+        "спальня"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K2",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K2/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k3",
+      "room": "прикроватный 1",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K3",
+      "aliases": [
+        "прикроватный 1",
+        "свет прикроватный 1"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K3/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K3",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K3/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k4",
+      "room": "прикроватный 2",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K4",
+      "aliases": [
+        "прикроватный 2",
+        "свет прикроватный 2"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K4/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K4",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K4/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k5",
+      "room": "гардероб",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K5",
+      "aliases": [
+        "гардероб",
+        "свет гардероб"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K5/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K5",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K5/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_105_k6",
+      "room": "фасад",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_105/K6",
+      "aliases": [
+        "свет фасад",
+        "фасад"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K6/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_105/controls/K6",
+          "command_topic": "/devices/wb-mr6cv3_105/controls/K6/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k1",
+      "room": "остров",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K1",
+      "aliases": [
+        "остров",
+        "свет остров"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K1",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k2",
+      "room": "кухня",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K2",
+      "aliases": [
+        "кухня",
+        "свет кухня"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K2",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K2/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k3",
+      "room": "тамбур",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K3",
+      "aliases": [
+        "свет тамбур",
+        "тамбур"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K3/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K3",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K3/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k4",
+      "room": "прихожая",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K4",
+      "aliases": [
+        "прихожая",
+        "свет прихожая"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K4/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K4",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K4/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k5",
+      "room": "котельная",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K5",
+      "aliases": [
+        "котельная",
+        "свет котельная"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K5/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K5",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K5/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mr6cv3_124_k6",
+      "room": "кладовка",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mr6cv3_124/K6",
+      "aliases": [
+        "кладовка",
+        "свет кладовка"
+      ],
+      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K6/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mr6cv3_124/controls/K6",
+          "command_topic": "/devices/wb-mr6cv3_124/controls/K6/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_169_k1",
+      "room": "коридор",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_169/K1",
+      "aliases": [
+        "коридор",
+        "свет коридор"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_169/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/K1",
+          "command_topic": "/devices/wb-mdm3_169/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/Channel 1",
+          "command_topic": "/devices/wb-mdm3_169/controls/Channel 1/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_169_k2",
+      "room": "туалет",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_169/K2",
+      "aliases": [
+        "свет туалет",
+        "туалет"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_169/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/K2",
+          "command_topic": "/devices/wb-mdm3_169/controls/K2/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/Channel 2",
+          "command_topic": "/devices/wb-mdm3_169/controls/Channel 2/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_169_k3",
+      "room": "сауна",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_169/K3",
+      "aliases": [
+        "сауна",
+        "свет сауна"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_169/controls/K3/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/K3",
+          "command_topic": "/devices/wb-mdm3_169/controls/K3/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_169/controls/Channel 3",
+          "command_topic": "/devices/wb-mdm3_169/controls/Channel 3/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_158_k1",
+      "room": "душевая",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_158/K1",
+      "aliases": [
+        "душевая",
+        "свет душевая"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_158/controls/K1/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/K1",
+          "command_topic": "/devices/wb-mdm3_158/controls/K1/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/Channel 1",
+          "command_topic": "/devices/wb-mdm3_158/controls/Channel 1/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_158_k2",
+      "room": "столовая",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_158/K2",
+      "aliases": [
+        "свет столовая",
+        "столовая"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_158/controls/K2/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/K2",
+          "command_topic": "/devices/wb-mdm3_158/controls/K2/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/Channel 2",
+          "command_topic": "/devices/wb-mdm3_158/controls/Channel 2/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    },
+    {
+      "id": "wb-mdm3_158_k3",
+      "room": "туалет спальня",
+      "kind": "light",
+      "integration": "wirenboard",
+      "external_id": "wb-mdm3_158/K3",
+      "aliases": [
+        "свет туалет спальня",
+        "туалет спальня"
+      ],
+      "meta_error_topic": "/devices/wb-mdm3_158/controls/K3/meta/error",
+      "capabilities": [
+        {
+          "name": "on_off",
+          "type": "bool",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/K3",
+          "command_topic": "/devices/wb-mdm3_158/controls/K3/on",
+          "payload_on": "1",
+          "payload_off": "0"
+        },
+        {
+          "name": "brightness",
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "readable": true,
+          "writable": true,
+          "risk": "safe",
+          "state_topic": "/devices/wb-mdm3_158/controls/Channel 3",
+          "command_topic": "/devices/wb-mdm3_158/controls/Channel 3/on",
+          "payload_on": null,
+          "payload_off": null
+        }
+      ]
+    }
+  ]
+}

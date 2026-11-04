@@ -30,6 +30,8 @@ pub struct Config {
     pub fallback_model: String,
     pub fallback_api_key: String,
     pub primary_timeout_ms: u64,
+    /// JSON config for the Wiren Board home model; empty disables home control.
+    pub home_config: String,
 }
 
 impl Config {
@@ -62,6 +64,7 @@ impl Config {
             fallback_model: env_or("AGENT_FALLBACK_MODEL", "qwen3.5-9b-q4km"),
             fallback_api_key: env_or("AGENT_FALLBACK_API_KEY", ""),
             primary_timeout_ms: env_parse("AGENT_PRIMARY_TIMEOUT_MS", 2500)?,
+            home_config: env_or("AGENT_HOME_CONFIG", ""),
         })
     }
 }

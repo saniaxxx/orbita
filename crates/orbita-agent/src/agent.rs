@@ -25,6 +25,7 @@ pub struct Agent {
     system_prompt: String,
     history_limit: usize,
     mcp: Option<Arc<McpRegistry>>,
+    home: Option<Arc<crate::home::HomeService>>,
 }
 
 impl Agent {
@@ -40,11 +41,17 @@ impl Agent {
             system_prompt: system_prompt.into(),
             history_limit,
             mcp: None,
+            home: None,
         }
     }
 
     pub fn with_mcp(mut self, mcp: Arc<McpRegistry>) -> Self {
         self.mcp = Some(mcp);
+        self
+    }
+
+    pub fn with_home(mut self, home: Arc<crate::home::HomeService>) -> Self {
+        self.home = Some(home);
         self
     }
 
@@ -86,6 +93,25 @@ impl Agent {
             // ASR produced nothing (cold start, noise): answer politely instead
             // of failing the dialog.
             return Ok(Outcome::text("Я вас не расслышала. Повторите, пожалуйста."));
+        }
+
+        if let Some(home) = self.home.as_deref() {
+            let lower = text.to_lowercase();
+            if lower.contains("какой свет")
+                || lower.contains("что включено")
+                || lower.contains("статус света")
+            {
+                return Ok(Outcome::text(home.status_line()));
+            }
+            if let Some(command) = home.parse(text) {
+                return match home.execute(&command).await {
+                    Ok(()) => Ok(Outcome::text(&command.reply)),
+                    Err(error) => {
+                        tracing::warn!(%error, "home command failed");
+                        Ok(Outcome::text(format!("Не получилось: {error}")))
+                    }
+                };
+            }
         }
 
         if let Some(parsed) = reminder::parse(text, now) {

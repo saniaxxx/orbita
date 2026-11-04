@@ -6,6 +6,7 @@ pub mod channel;
 pub mod config;
 pub mod db;
 pub mod fastpath;
+pub mod home;
 pub mod llm;
 pub mod mcp;
 pub mod notify;

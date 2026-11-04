@@ -62,6 +62,15 @@ async fn main() -> Result<()> {
         info!(tools = mcp.tools().count(), "MCP tools loaded");
         agent = agent.with_mcp(Arc::new(mcp));
     }
+    if !config.home_config.trim().is_empty() {
+        match orbita_agent::home::HomeService::start(&config.home_config).await {
+            Ok(home) => {
+                info!(config = %config.home_config, "home control ready");
+                agent = agent.with_home(Arc::new(home));
+            }
+            Err(error) => warn!(%error, "home control disabled"),
+        }
+    }
     let agent = Arc::new(agent);
     let notifier =
         Arc::new(QuasarNotifier::new(&config.quasar_api_url).map_err(anyhow::Error::msg)?);
