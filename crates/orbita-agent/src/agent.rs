@@ -162,8 +162,10 @@ impl Agent {
                         return Err("LLM returned an empty answer after search".to_owned());
                     }
                     self.store.append_message(&history_id, "user", text)?;
-                    self.store.append_message(&history_id, "assistant", &reply)?;
-                    self.store.audit("dialogue.search", &format!("session={history_id}"))?;
+                    self.store
+                        .append_message(&history_id, "assistant", &reply)?;
+                    self.store
+                        .audit("dialogue.search", &format!("session={history_id}"))?;
                     return Ok(Outcome {
                         text: reply,
                         actions,
@@ -258,13 +260,17 @@ impl Agent {
 
         self.store.append_message(&history_id, "user", text)?;
         if !reply.is_empty() {
-            self.store.append_message(&history_id, "assistant", &reply)?;
+            self.store
+                .append_message(&history_id, "assistant", &reply)?;
         }
         self.store.audit(
             "dialogue",
             &format!("session={history_id} actions={}", actions.len()),
         )?;
-        Ok(Outcome { text: reply, actions })
+        Ok(Outcome {
+            text: reply,
+            actions,
+        })
     }
 
     fn system_prompt_with_time(&self, now: DateTime<Utc>, context: &SessionContext) -> String {
@@ -412,7 +418,10 @@ fn parse_reply(
 
 fn strip_code_fences(text: &str) -> String {
     let text = text.trim();
-    let text = text.strip_prefix("```json").or_else(|| text.strip_prefix("```")).unwrap_or(text);
+    let text = text
+        .strip_prefix("```json")
+        .or_else(|| text.strip_prefix("```"))
+        .unwrap_or(text);
     text.trim().trim_end_matches("```").trim().to_owned()
 }
 
@@ -454,7 +463,10 @@ fn parse_loose_calls(
     let lower = text.to_lowercase();
     let marker = lower.find("function_calls:");
     let (prefix, rest) = match marker {
-        Some(index) => (&text[..index], text[index + "function_calls:".len()..].trim()),
+        Some(index) => (
+            &text[..index],
+            text[index + "function_calls:".len()..].trim(),
+        ),
         None => {
             let rest = text.trim();
             if rest.starts_with('[') {
@@ -728,9 +740,17 @@ mod tests {
     #[test]
     fn strips_fences_and_json_tails() {
         let context = SessionContext::default();
-        assert_eq!(parse_reply("```json\n{\"text\": \"Привет.\"}\n```", &context, None).0, "Привет.");
         assert_eq!(
-            parse_reply("Стих готов. function_calls: [{\"name\": \"x\", \"arguments\": {}}]", &context, None).0,
+            parse_reply("```json\n{\"text\": \"Привет.\"}\n```", &context, None).0,
+            "Привет."
+        );
+        assert_eq!(
+            parse_reply(
+                "Стих готов. function_calls: [{\"name\": \"x\", \"arguments\": {}}]",
+                &context,
+                None
+            )
+            .0,
             "Стих готов."
         );
         assert_eq!(sanitize_text("{\"a\": 1}"), "");
