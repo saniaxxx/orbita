@@ -9,7 +9,8 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use orbita_agent::{
-    Agent, AppState, Config, OpenAiClient, QuasarNotifier, Store, build_router, reminder_scheduler,
+    Agent, AppState, Config, McpRegistry, OpenAiClient, QuasarNotifier, Store, build_router,
+    reminder_scheduler,
 };
 use tracing::{info, warn};
 
@@ -32,12 +33,20 @@ async fn main() -> Result<()> {
         &config.openai_model,
     )
     .map_err(anyhow::Error::msg)?;
-    let agent = Arc::new(Agent::new(
+    let mut agent = Agent::new(
         Arc::clone(&store),
         Arc::new(llm),
         config.system_prompt.clone(),
         config.history_limit,
-    ));
+    );
+    if !config.mcp_server_urls.is_empty() {
+        let mut mcp = McpRegistry::from_specs(&config.mcp_server_urls)
+            .map_err(anyhow::Error::msg)?;
+        mcp.initialize().await;
+        info!(tools = mcp.tools().count(), "MCP tools loaded");
+        agent = agent.with_mcp(Arc::new(mcp));
+    }
+    let agent = Arc::new(agent);
     let notifier =
         Arc::new(QuasarNotifier::new(&config.quasar_api_url).map_err(anyhow::Error::msg)?);
     tokio::spawn(reminder_scheduler::run(

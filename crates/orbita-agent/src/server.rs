@@ -167,6 +167,10 @@ fn render_directives(
 ) -> Vec<Directive> {
     let mut directives = Vec::new();
     for action in &outcome.actions {
+        if matches!(action, Action::ToolCall { .. }) {
+            // Server-side tools are executed inside the agent core.
+            continue;
+        }
         let Some(directive) = channel.directive(action) else {
             warn!(
                 ?action,

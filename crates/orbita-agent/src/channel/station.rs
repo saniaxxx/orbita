@@ -93,6 +93,8 @@ impl StationSession {
             Action::Directive { name, arguments } => {
                 (normalize_function_name(name), arguments.clone())
             }
+            // Server-side MCP tools are executed by the agent, not the station.
+            Action::ToolCall { .. } => return None,
         };
 
         let actual = self.actual_name(name)?;

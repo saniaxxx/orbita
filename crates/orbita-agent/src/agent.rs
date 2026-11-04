@@ -16,6 +16,7 @@ use crate::action::{
 use crate::db::Store;
 use crate::fastpath;
 use crate::llm::{LlmClient, Message};
+use crate::mcp::McpRegistry;
 use crate::reminder;
 
 pub struct Agent {
@@ -23,6 +24,7 @@ pub struct Agent {
     llm: Arc<dyn LlmClient>,
     system_prompt: String,
     history_limit: usize,
+    mcp: Option<Arc<McpRegistry>>,
 }
 
 impl Agent {
@@ -37,7 +39,13 @@ impl Agent {
             llm,
             system_prompt: system_prompt.into(),
             history_limit,
+            mcp: None,
         }
+    }
+
+    pub fn with_mcp(mut self, mcp: Arc<McpRegistry>) -> Self {
+        self.mcp = Some(mcp);
+        self
     }
 
     pub fn store(&self) -> &Arc<Store> {
@@ -93,7 +101,9 @@ impl Agent {
         }
 
         let history_id = session.history_id();
-        let mut messages = vec![Message::system(self.system_prompt_with_time(now, context))];
+        let mut messages = vec![Message::system(
+            self.system_prompt_with_time(now, context),
+        )];
         for message in self.store.messages(&history_id, self.history_limit)? {
             messages.push(Message {
                 role: message.role,
@@ -102,8 +112,51 @@ impl Agent {
         }
         messages.push(Message::user(text));
 
-        let raw = self.llm.complete(&messages).await?;
-        let (reply, actions) = parse_reply(&raw, context);
+        let mut reply = String::new();
+        let mut actions = Vec::new();
+        let mut completed = false;
+        // A tool result goes back to the model; repeat at most three times so
+        // a confused model cannot loop forever.
+        for _ in 0..4 {
+            let raw = self.llm.complete(&messages).await?;
+            let (text, parsed_actions) = parse_reply(&raw, context, self.mcp.as_deref());
+            let mut tool_calls = Vec::new();
+            let mut channel_actions = Vec::new();
+            for action in parsed_actions {
+                match action {
+                    Action::ToolCall { .. } => tool_calls.push(action),
+                    other => channel_actions.push(other),
+                }
+            }
+
+            if tool_calls.is_empty() {
+                reply = text;
+                actions = channel_actions;
+                completed = true;
+                break;
+            }
+
+            messages.push(Message::assistant(raw));
+            let mut results = Vec::new();
+            for action in tool_calls {
+                let Action::ToolCall { name, arguments } = action else {
+                    unreachable!("tool_calls only contains ToolCall");
+                };
+                let result = match self.mcp.as_ref() {
+                    Some(mcp) => mcp.call(&name, &arguments).await,
+                    None => Err("MCP is not configured".to_owned()),
+                };
+                results.push(match result {
+                    Ok(value) => format!("{name}: {value}"),
+                    Err(error) => format!("{name}: ошибка: {error}"),
+                });
+            }
+            messages.push(Message::tool(results.join("\n")));
+        }
+        if !completed {
+            return Err("LLM kept calling tools without a final answer".to_owned());
+        }
+
         let reply = reply.trim();
         if reply.is_empty() && actions.is_empty() {
             return Err("LLM returned an empty answer".to_owned());
@@ -135,6 +188,13 @@ impl Agent {
             prompt.push('\n');
             prompt.push_str(&crate::action::function_prompt(context));
         }
+        if let Some(mcp) = self.mcp.as_deref() {
+            let tools = mcp.prompt();
+            if !tools.is_empty() {
+                prompt.push('\n');
+                prompt.push_str(&tools);
+            }
+        }
         prompt
     }
 }
@@ -147,6 +207,9 @@ fn action_supported(action: &Action, context: &SessionContext) -> bool {
         Action::SetVolume(VolumeChange::Set(_)) => context.has("set_sound_volume"),
         Action::SetTimer { .. } => context.has("timer_set"),
         Action::Directive { name, .. } => context.has(normalize_function_name(name)),
+        // Fast paths never produce server tools; they are checked against the
+        // MCP registry when the LLM reply is parsed.
+        Action::ToolCall { .. } => false,
     }
 }
 
@@ -158,7 +221,7 @@ fn action_reply(action: &Action) -> String {
         Action::SetTimer { seconds, .. } => {
             format!("Таймер {}.", crate::russian::duration_phrase(*seconds))
         }
-        Action::Directive { .. } => String::new(),
+        Action::Directive { .. } | Action::ToolCall { .. } => String::new(),
     }
 }
 
@@ -166,7 +229,11 @@ fn action_reply(action: &Action) -> String {
 ///
 /// llama.cpp runs with a JSON grammar (D-6), so the reply is always a JSON
 /// object; a plain-text reply is passed through for tests and other backends.
-fn parse_reply(raw: &str, context: &SessionContext) -> (String, Vec<Action>) {
+fn parse_reply(
+    raw: &str,
+    context: &SessionContext,
+    mcp: Option<&McpRegistry>,
+) -> (String, Vec<Action>) {
     let trimmed = raw.trim();
     let Some(object) = serde_json::from_str::<Value>(trimmed)
         .ok()
@@ -194,8 +261,13 @@ fn parse_reply(raw: &str, context: &SessionContext) -> (String, Vec<Action>) {
                     name: name.to_owned(),
                     arguments,
                 });
+            } else if mcp.is_some_and(|mcp| mcp.has_tool(name)) {
+                actions.push(Action::ToolCall {
+                    name: name.to_owned(),
+                    arguments,
+                });
             } else {
-                warn!(%name, "model called a function the channel did not offer; dropping it");
+                warn!(%name, "model called an unknown function; dropping it");
             }
         }
     }
@@ -401,21 +473,22 @@ mod tests {
     fn unwraps_llm_json() {
         let context = SessionContext::default();
         assert_eq!(
-            parse_reply("{\"reply\": \"Привет.\"}", &context).0,
+            parse_reply("{\"reply\": \"Привет.\"}", &context, None).0,
             "Привет."
         );
         assert_eq!(
             parse_reply(
                 "{\"role\": \"assistant\", \"content\": \"Привет!\"}",
-                &context
+                &context,
+                None
             )
             .0,
             "Привет!"
         );
-        assert_eq!(parse_reply("{\"text\": \"Да.\"}", &context).0, "Да.");
-        assert_eq!(parse_reply("{\"a\": \"одно\"}", &context).0, "одно");
-        assert_eq!(parse_reply("просто текст", &context).0, "просто текст");
-        assert_eq!(parse_reply("{\"a\": 1}", &context).0, "{\"a\": 1}");
+        assert_eq!(parse_reply("{\"text\": \"Да.\"}", &context, None).0, "Да.");
+        assert_eq!(parse_reply("{\"a\": \"одно\"}", &context, None).0, "одно");
+        assert_eq!(parse_reply("просто текст", &context, None).0, "просто текст");
+        assert_eq!(parse_reply("{\"a\": 1}", &context, None).0, "{\"a\": 1}");
     }
 
     #[test]
@@ -431,6 +504,7 @@ mod tests {
             })
             .to_string(),
             &context,
+            None,
         );
         assert_eq!(text, "Ставлю таймер.");
         assert_eq!(

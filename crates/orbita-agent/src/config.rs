@@ -22,6 +22,7 @@ pub struct Config {
     pub system_prompt: String,
     pub history_limit: usize,
     pub scheduler_interval_ms: u64,
+    pub mcp_server_urls: Vec<String>,
 }
 
 impl Config {
@@ -49,6 +50,15 @@ impl Config {
             system_prompt: env_or("AGENT_SYSTEM_PROMPT", DEFAULT_PROMPT),
             history_limit,
             scheduler_interval_ms,
+            mcp_server_urls: split_urls(&env_or("AGENT_MCP_SERVER_URLS", "")),
         })
     }
+}
+
+fn split_urls(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
 }

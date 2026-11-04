@@ -18,6 +18,11 @@ SQLite и исполняет штатные директивы станции.
     quasar превращает в `TDirective`;
   - зеркалит нативные таймеры в SQLite (`kind = native_timer`), но **не**
     отправляет их push-ом: таймер исполняет станция.
+- **MCP-поиск**. `AGENT_MCP_SERVER_URLS=search#http://127.0.0.1:8899/mcp`
+  подключает `orbita-mcp-search`; инструмент виден модели как `search_search`.
+  Если модель вызывает его, агент делает `tools/call`, кладёт результат в
+  сообщение `role=tool` и повторяет запрос к LLM — два прохода, как у processor.
+  `tools/list` кэшируется на старте; при 404 сессия MCP переинициализируется.
 - **Напоминания** без LLM: «через N минут», «через одну минуту», «через
   двадцать пять минут», «через полчаса», «в HH:MM», «завтра в HH:MM». Время
   считается в `Europe/Moscow`, хранится в UTC.
@@ -90,6 +95,7 @@ cargo run -p orbita-cli -- ask "напомни через одну минуту 
 | `OPENAI_API_KEY` | пусто | ключ llama, если нужен |
 | `AGENT_DB` | `/var/lib/orbita-agent/agent.db` | SQLite |
 | `QUASAR_API_URL` | `http://127.0.0.1:31121` | management API quasar |
+| `AGENT_MCP_SERVER_URLS` | пусто | MCP-серверы `имя#url` через запятую; для поиска `search#http://127.0.0.1:8899/mcp` |
 | `DEFAULT_DUID` | нет | станция, если quasar не передал `deviceId` |
 | `HISTORY_LIMIT` | `12` | сообщений истории в промпт |
 | `SCHEDULER_INTERVAL_MS` | `1000` | тик планировщика |
@@ -108,13 +114,12 @@ cargo clippy -p orbita-agent --all-targets -- -D warnings
 
 ## Чего пока нет
 
-- MCP-инструментов и поиска: «какая погода» отвечает по памяти модели.
-- Дома, Frigate, TV, профилей и voice ID.
+- MCP-инструментов дома, Frigate, TV, профилей и voice ID. Поиск уже есть.
 - Потокового `partialResponse` по мере генерации: одно финальное сообщение.
 - Политики подтверждений для опасных действий.
 
 ## Дальше
 
-1. MCP-клиент/сервер: `schedule/list/cancel`, `search`, дом.
+1. MCP-инструменты `schedule/list/cancel` и дом; поиск уже подключён.
 2. Политика grant/nonce и `orbita-home`.
 3. Telegram и веб как каналы поверх того же ядра.

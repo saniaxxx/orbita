@@ -37,6 +37,13 @@ impl Message {
             content: content.into(),
         }
     }
+
+    pub fn tool(content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".to_owned(),
+            content: content.into(),
+        }
+    }
 }
 
 #[async_trait]

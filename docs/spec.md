@@ -1236,20 +1236,26 @@ Wiren Board, затем `orbita-agent` и политика подтвержде�
 - Планировщик отправляет due-задачи в quasar
   `POST /devices/{duid}/push/text` (`eventText`), retry 3 раза.
 - LLM — локальный OpenAI-совместимый SSE, история `HISTORY_LIMIT`.
+- MCP-клиент (Streamable HTTP) в `src/mcp.rs`: `AGENT_MCP_SERVER_URLS`,
+  `tools/list` на старте, `tools/call` и повторный проход LLM. Поиск —
+  `search#http://127.0.0.1:8899/mcp`, инструмент `search_search`.
 - quasar теперь передаёт `metadata.internal.deviceId`; `DEFAULT_DUID` —
   fallback для старого quasar.
 - Юнит `deploy/systemd/orbita-agent.service`, инструкция `docs/agent.md`.
 - Директивы станции реализованы (D-15): карта `prepare`, fast path для
   громкости и таймеров, `function_calls` модели для остального, зеркало
-  `native_timer` в SQLite. Тесты: 36 unit, контракт `/process`, 18 сценариев
-  директив и голосовой харнесс 13/13. Документация — `docs/agent.md`.
+  `native_timer` в SQLite. Тесты: unit + `/process` + 18 сценариев директив +
+  голосовой харнесс 13/13; MCP-клиент проверен тремя тестами с фейковым
+  сервером (initialize/list/call и двухпроходный поиск). Документация —
+  `docs/agent.md`.
 
-Дальше: MCP-инструменты и политика grant/nonce, затем `orbita-home`.
+Дальше: MCP-инструменты дома и политика grant/nonce, затем `orbita-home`.
 
 **Переключение на стенде (03.11.2026).** `orbita-agent` заменяет processor на
 порту 8080: `orbita-processor` остановлен и убран из автозапуска, юнит
-`orbita-agent.service` включён. Это тестовый стенд, поэтому осознанно потеряны
-MCP-поиск и функции-директивы (громкость, таймеры) — у агента их пока нет.
+`orbita-agent.service` включён. На момент переключения у агента ещё не было
+MCP-поиска и функций-директив; позже оба восстановлены: директивы — D-15,
+поиск — MCP-клиент `search_search` через `orbita-mcp-search`.
 Что понадобилось:
 - `QUASAR_API_URL=http://127.0.0.1:31121` вместо `.102`: quasar переехал в CT 101;
 - `DEFAULT_DUID=LG0000000000002793950000ab593116`: живой TS-quasar не передаёт

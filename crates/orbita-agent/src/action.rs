@@ -86,6 +86,12 @@ pub enum Action {
         name: String,
         arguments: Value,
     },
+    /// A server-side MCP tool. The agent executes it and feeds the result back
+    /// to the model; it never reaches a channel.
+    ToolCall {
+        name: String,
+        arguments: Value,
+    },
 }
 
 impl Action {
@@ -99,6 +105,7 @@ impl Action {
                     _ => Risk::Safe,
                 }
             }
+            Self::ToolCall { .. } => Risk::Safe,
         }
     }
 }
