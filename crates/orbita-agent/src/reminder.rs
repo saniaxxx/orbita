@@ -104,10 +104,13 @@ fn parse_relative_words(input: &str, now: DateTime<Utc>) -> Option<Reminder> {
     let unit = captures.get(2)?.as_str().to_lowercase();
     let text = clean_text(captures.get(3)?.as_str());
     let mut total = 0u64;
+    let mut any = false;
     for word in words.split_whitespace() {
         total += number_value(word)?;
+        any = true;
     }
-    let amount = total as i64;
+    // "через минуту" / "через час" imply one.
+    let amount = if any { total as i64 } else { 1 };
     let minutes = if unit.starts_with("час") {
         amount * 60
     } else {
@@ -126,7 +129,7 @@ fn half_hour_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
         Regex::new(
-            r"(?iu)^\s*(?:алиса[,.!\s]+)?напомни(?:\s+мне)?\s+через\s+полчаса\s*[,:]?\s*(.*)$",
+            r"(?iu)^\s*(?:алиса[,.!\s]+)?(?:напомни|поставь(?:\s+мне)?\s+напоминание|напоминание)(?:\s+мне)?\s+через\s+полчаса\s*[,:]?\s*(.*)$",
         )
         .expect("half-hour reminder regex")
     })
@@ -136,7 +139,7 @@ fn relative_words_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
         Regex::new(
-            r"(?iu)^\s*(?:алиса[,.!\s]+)?напомни(?:\s+мне)?\s+через\s+((?:[а-яё]+\s*){1,2})\s*(минут(?:у|ы)?|час(?:а|ов)?|полчаса)\s*[,:]?\s*(.*)$",
+            r"(?iu)^\s*(?:алиса[,.!\s]+)?(?:напомни|поставь(?:\s+мне)?\s+напоминание|напоминание)(?:\s+мне)?\s+через\s+((?:[а-яё]+\s*){0,2}?)\s*(минут(?:у|ы)?|час(?:а|ов)?|полчаса)\s*[,:]?\s*(.*)$",
         )
         .expect("relative word reminder regex")
     })
@@ -146,7 +149,7 @@ fn relative_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
         Regex::new(
-            r"(?iu)^\s*(?:алиса[,.!\s]+)?напомни(?:\s+мне)?\s+через\s+(\d+)\s*(минут(?:у|ы)?|час(?:а|ов)?)\s*[,:]?\s*(.*)$",
+            r"(?iu)^\s*(?:алиса[,.!\s]+)?(?:напомни|поставь(?:\s+мне)?\s+напоминание|напоминание)(?:\s+мне)?\s+через\s+(\d+)\s*(минут(?:у|ы)?|час(?:а|ов)?)\s*[,:]?\s*(.*)$",
         )
         .expect("relative reminder regex")
     })
@@ -156,7 +159,7 @@ fn absolute_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
         Regex::new(
-            r"(?iu)^\s*(?:алиса[,.!\s]+)?напомни(?:\s+мне)?\s+(завтра\s+)?в\s+(\d{1,2}):(\d{2})\s*[,:]?\s*(.*)$",
+            r"(?iu)^\s*(?:алиса[,.!\s]+)?(?:напомни|поставь(?:\s+мне)?\s+напоминание|напоминание)(?:\s+мне)?\s+(завтра\s+)?в\s+(\d{1,2}):(\d{2})\s*[,:]?\s*(.*)$",
         )
         .expect("absolute reminder regex")
     })
@@ -170,6 +173,14 @@ mod tests {
         DateTime::parse_from_rfc3339("2026-11-03T09:00:00Z")
             .unwrap()
             .with_timezone(&Utc)
+    }
+
+    #[test]
+    fn parses_set_a_reminder_phrasing() {
+        let reminder = parse("Алиса, поставь напоминание через минуту", now()).unwrap();
+        assert_eq!(reminder.due_at, now() + Duration::minutes(1));
+        let reminder = parse("поставь мне напоминание через 20 минут позвонить", now()).unwrap();
+        assert_eq!(reminder.text, "позвонить");
     }
 
     #[test]
