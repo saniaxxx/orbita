@@ -115,17 +115,7 @@ impl TvConfig {
         let needle = query.to_lowercase();
         let matches: Vec<&TvDevice> = enabled
             .into_iter()
-            .filter(|device| {
-                device.id.to_lowercase() == needle
-                    || device
-                        .room
-                        .as_deref()
-                        .is_some_and(|room| room.to_lowercase() == needle)
-                    || device
-                        .aliases
-                        .iter()
-                        .any(|alias| alias.to_lowercase() == needle)
-            })
+            .filter(|device| device.matches(&needle))
             .collect();
         match matches.as_slice() {
             [device] => Ok(device),
@@ -143,6 +133,66 @@ impl TvDevice {
     pub fn is_remote_v2(&self) -> bool {
         self.protocol == "remote_v2"
     }
+
+    /// Match a spoken reference: exact id/room/alias or a Russian case form.
+    fn matches(&self, query: &str) -> bool {
+        if self.id.to_lowercase() == query {
+            return true;
+        }
+        if self
+            .room
+            .as_deref()
+            .is_some_and(|room| phrase_matches(query, room))
+        {
+            return true;
+        }
+        self.aliases
+            .iter()
+            .any(|alias| phrase_matches(query, alias))
+    }
+}
+
+/// Russian noun/adjective endings, longest first; stems shorter than 4
+/// characters are left alone to avoid silly matches.
+const ENDINGS: &[&str] = &[
+    "ыми", "ими", "ого", "его", "ому", "ему", "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий", "ых",
+    "их", "ой", "ей", "ою", "ею", "ую", "юю", "ом", "ем", "ам", "ям", "ах", "ях", "а", "я", "у",
+    "ю", "е", "и", "ы", "о", "ь",
+];
+
+fn stem(word: &str) -> &str {
+    for ending in ENDINGS {
+        if let Some(base) = word.strip_suffix(ending)
+            && base.chars().count() >= 4
+        {
+            return base;
+        }
+    }
+    word
+}
+
+/// Stemmed words of a phrase. One-letter words (prepositions) are dropped so
+/// «телевизор в гостиной» matches «телевизор гостиная».
+fn stems(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(|token| token.replace('ё', "е"))
+        .filter(|token| {
+            let mut chars = token.chars();
+            !matches!((chars.next(), chars.next()), (Some(c), None) if c.is_alphabetic())
+        })
+        .map(|token| stem(&token).to_owned())
+        .collect()
+}
+
+fn phrase_matches(query: &str, candidate: &str) -> bool {
+    let query = stems(query);
+    let candidate = stems(candidate);
+    !candidate.is_empty()
+        && candidate.len() <= query.len()
+        && query
+            .windows(candidate.len())
+            .any(|window| window == candidate.as_slice())
 }
 
 #[cfg(test)]
@@ -202,5 +252,16 @@ mod tests {
         let mut config = config;
         config.devices[1].enabled = true;
         assert!(config.resolve(None).is_err());
+    }
+
+    #[test]
+    fn matches_russian_case_forms_and_room_phrases() {
+        let config = config();
+        assert_eq!(config.resolve(Some("в гостиной")).unwrap().id, "tcl");
+        assert_eq!(
+            config.resolve(Some("телевизор в гостиной")).unwrap().id,
+            "tcl"
+        );
+        assert_eq!(config.resolve(Some("телик в гостиной")).unwrap().id, "tcl");
     }
 }
