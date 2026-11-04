@@ -110,7 +110,7 @@ cargo run -p orbita-cli -- ask "напомни через одну минуту 
 | `OPENAI_API_KEY` | пусто | ключ llama, если нужен |
 | `AGENT_DB` | `/var/lib/orbita-agent/agent.db` | SQLite |
 | `QUASAR_API_URL` | `http://127.0.0.1:31121` | management API quasar |
-| `AGENT_MCP_SERVER_URLS` | пусто | MCP-серверы `имя#url` через запятую; для поиска `search#http://127.0.0.1:8899/mcp` |
+| `AGENT_MCP_SERVER_URLS` | пусто | MCP-серверы `имя#url` через запятую; поиск `search#http://127.0.0.1:8899/mcp`, TV `tv#http://127.0.0.1:8898/mcp` |
 | `DEFAULT_DUID` | нет | станция, если quasar не передал `deviceId` |
 | `HISTORY_LIMIT` | `12` | сообщений истории в промпт |
 | `AGENT_FALLBACK_BASE_URL` | локальная llama | второй LLM на случай, если основной молчит дольше таймаута; пусто — выключено |
@@ -148,7 +148,7 @@ AGENT_MCP_URL=http://127.0.0.1:8899/mcp \
 
 ## Чего пока нет
 
-- MCP-инструментов дома, Frigate, TV, профилей и voice ID. Поиск уже есть.
+- MCP-инструментов дома, Frigate, профилей и voice ID. Поиск и TV уже есть.
 - Потокового `partialResponse` по мере генерации: одно финальное сообщение.
 - Политики подтверждений для опасных действий.
 

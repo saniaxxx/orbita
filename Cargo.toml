@@ -13,6 +13,7 @@ members = [
     "crates/orbita-glagol",
     "crates/orbita-home",
     "crates/orbita-agent",
+    "crates/orbita-tv",
 ]
 resolver = "3"
 
@@ -32,14 +33,17 @@ futures-util = "0.3"
 handlebars = "6.4"
 mdns-sd = "0.13"
 native-tls = "0.2"
+prost = "0.13"
 regex = "1.12"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 rumqttc = "0.24"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
 rmcp = { version = "3.8", features = ["transport-streamable-http-server"] }
 schemars = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
@@ -66,3 +70,8 @@ version = "0.1"
 
 [workspace.dependencies.tokio-tungstenite]
 version = "0.29"
+
+[workspace.dependencies.tokio-rustls]
+version = "0.26"
+default-features = false
+features = ["ring", "tls12"]

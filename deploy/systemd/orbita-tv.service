@@ -1,0 +1,21 @@
+[Unit]
+Description=orbita-tv: Android TV / Google TV MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=HOST=127.0.0.1
+Environment=PORT=8898
+Environment=TV_CONFIG=/etc/orbita/tv.json
+ExecStart=/opt/orbita/target/release/orbita-tv
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
