@@ -8,7 +8,10 @@ use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
     let host = args.next().unwrap_or_else(|| "192.168.250.110".to_owned());
-    let seconds: u64 = args.next().and_then(|value| value.parse().ok()).unwrap_or(6);
+    let seconds: u64 = args
+        .next()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(6);
 
     let mut options = MqttOptions::new("orbita-mqtt-dump", host, 1883);
     options.set_keep_alive(Duration::from_secs(10));

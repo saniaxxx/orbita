@@ -28,7 +28,9 @@ pub enum HomeOutcome {
     Done(String),
     /// Sensitive or dangerous action: a code went to the log, the owner must
     /// confirm it through another channel (`POST /confirm`).
-    NeedsConfirmation { reply: String },
+    NeedsConfirmation {
+        reply: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,9 +63,7 @@ impl HomeService {
     pub fn parse(&self, text: &str) -> Option<HomeCommand> {
         let text = text.to_lowercase();
         let brightness = brightness_value(&text);
-        let on = text.contains("включи")
-            || text.contains("зажги")
-            || text.contains("включить");
+        let on = text.contains("включи") || text.contains("зажги") || text.contains("включить");
         let off = text.contains("выключи")
             || text.contains("погаси")
             || text.contains("выключить")
@@ -117,7 +117,10 @@ impl HomeService {
                         continue;
                     }
                     let score = alias.len();
-                    if best.as_ref().is_none_or(|(best_score, _)| score > *best_score) {
+                    if best
+                        .as_ref()
+                        .is_none_or(|(best_score, _)| score > *best_score)
+                    {
                         best = Some((
                             score,
                             DeviceChoice {
@@ -258,10 +261,14 @@ impl HomeService {
                     .and_then(|v| v.as_str())
                     .unwrap_or("on_off");
                 let value = arguments.get("value").and_then(|v| {
-                    v.as_str().map(str::to_owned).or_else(|| v.as_f64().map(|n| n.to_string()))
+                    v.as_str()
+                        .map(str::to_owned)
+                        .or_else(|| v.as_f64().map(|n| n.to_string()))
                 })?;
                 let action = match capability {
-                    "brightness" => Action::Number { value: value.parse().ok()? },
+                    "brightness" => Action::Number {
+                        value: value.parse().ok()?,
+                    },
                     _ => Action::OnOff {
                         on: matches!(value.as_str(), "1" | "true" | "on" | "вкл" | "включить"),
                     },
@@ -272,14 +279,10 @@ impl HomeService {
                     action,
                     reply: format!("Готово: {device}."),
                 };
-                Some(
-                    self.execute(&command)
-                        .await
-                        .map(|outcome| match outcome {
-                            HomeOutcome::Done(reply) => reply,
-                            HomeOutcome::NeedsConfirmation { reply } => reply,
-                        }),
-                )
+                Some(self.execute(&command).await.map(|outcome| match outcome {
+                    HomeOutcome::Done(reply) => reply,
+                    HomeOutcome::NeedsConfirmation { reply } => reply,
+                }))
             }
             _ => None,
         }
@@ -314,7 +317,10 @@ struct DeviceChoice {
 
 impl DeviceChoice {
     fn capability(&self, name: &str) -> Option<()> {
-        self.capabilities.iter().any(|cap| cap == name).then_some(())
+        self.capabilities
+            .iter()
+            .any(|cap| cap == name)
+            .then_some(())
     }
 }
 
@@ -322,7 +328,11 @@ fn brightness_value(text: &str) -> Option<u32> {
     let bytes: Vec<char> = text.chars().collect();
     for (index, _) in text.match_indices("яркост") {
         let rest: String = bytes[index..].iter().collect();
-        let digits: String = rest.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
+        let digits: String = rest
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
         if let Ok(value) = digits.parse::<u32>() {
             return Some(value.min(100));
         }
