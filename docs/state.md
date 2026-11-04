@@ -39,8 +39,9 @@ Firewall намеренно не настраивался — домашний �
 
 ### Control plane, CT 101
 
-- `orbita-processor` — `0.0.0.0:8080`, LLM `http://192.168.250.102:8090/v1`,
-  модель `qwen3.5-9b-q4km`, MCP `search#http://127.0.0.1:8899/mcp`.
+- `orbita-agent` — `0.0.0.0:8080` вместо processor: `/process`, LLM
+  `http://192.168.250.102:8090/v1`, модель `qwen3.5-9b-q4km`, MCP
+  `search#http://127.0.0.1:8899/mcp`.
 - `orbita-mcp-search` — `127.0.0.1:8899`, SearXNG в CT 100 слушает
   `0.0.0.0:8888`.
 - `orbita-dashboard` — `0.0.0.0:8901` (открыт в LAN по решению владельца).
@@ -87,7 +88,7 @@ Firewall намеренно не настраивался — домашний �
 | `orbita-cli` | warmup, ask, latency |
 | `orbita-glagol` | спайк локального Glagol: mDNS, токен, `wss`, `audio_play`; **на стенде не проверялся** |
 | `orbita-home` | модель устройств, safe-write, stale, grants; CLI; **на стенде не проверялся** |
-| `orbita-agent` | **заменил processor на 8080** (D-14): `/process`, SQLite, напоминания, LLM; **директивы станции реализованы** (D-15): громкость, таймеры быстрым путём, остальное — `function_calls` LLM. MCP-поиска пока нет. Юнит `orbita-processor` удалён со стенда, `orbita-warmup` ждёт агента |
+| `orbita-agent` | **заменил processor на 8080** (D-14): `/process`, SQLite, напоминания, LLM; **директивы станции реализованы** (D-15): громкость, таймеры быстрым путём, остальное — `function_calls` LLM; **MCP-поиск реализован**: `search_search` через `orbita-mcp-search`, два прохода LLM. На Mac проверены тесты с фейковым сервером; реальный MCP-сервер вручную проверен по протоколу на стенде (initialize/list/call, без станции), но MCP-версия агента ещё не развёрнута в CT 101. Юнит `orbita-processor` удалён со стенда, `orbita-warmup` ждёт агента |
 
 ## 4. Что сделано за последние дни
 
@@ -134,9 +135,12 @@ Firewall намеренно не настраивался — домашний �
 ### 5.3. Агент
 
 Первая версия `orbita-agent` есть: `/process` вместо processor, SQLite-сессии,
-напоминания без LLM и push через quasar. Порядок замены processor и проверки —
-`docs/agent.md`. Дальше: MCP-инструменты, политика grant/nonce, `orbita-home`,
-затем Telegram.
+напоминания без LLM, push через quasar, директивы станции и MCP-поиск.
+MCP-клиент проверен на Mac с фейковым сервером; реальный `orbita-mcp-search`
+отвечает на initialize/list/call. Осталось развернуть MCP-версию агента в
+CT 101 и проверить голосом. Порядок замены processor и проверки —
+`docs/agent.md`. Дальше: MCP-инструменты дома, политика grant/nonce,
+`orbita-home`, затем Telegram.
 
 ### 5.4. Инструменты процессора
 
@@ -182,7 +186,8 @@ Firewall намеренно не настраивался — домашний �
   следующего шага: кодирование Opus без внешнего процесса.
 - Музыки нет; Glagol-спайк не проверен на станции.
 - `orbita-glagol` не умеет переподключаться, очередь и подписку на события.
-- `orbita-agent` без MCP-поиска, дома, профилей и voice ID; штатные директивы
+- `orbita-agent`: MCP-поиск реализован и проверен на Mac, но в CT 101 ещё
+  работает сборка без него; дома, профилей и voice ID нет. Штатные директивы
   станции работают (D-15), напоминания понимают словесные числа. Голосовой
   харнесс `deploy/verify/` проходит 13/13.
   `orbita-home` — модель и safe-write, без `wb-rules`, Frigate, Android TV,

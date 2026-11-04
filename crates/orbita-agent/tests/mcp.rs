@@ -6,7 +6,11 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use axum::{Json, Router, http::HeaderMap, routing::post};
+use axum::{
+    Json, Router,
+    http::{HeaderMap, header},
+    routing::post,
+};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
@@ -79,6 +83,59 @@ fn specs(url: &str) -> Vec<String> {
     vec![format!("search#{url}")]
 }
 
+/// The real server streams SSE and starts with an empty priming event; make
+/// sure the client skips it and reads the JSON-RPC event that follows.
+async fn sse_rpc(Json(body): Json<Value>) -> (HeaderMap, String) {
+    let method = body
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let id = body.get("id").cloned().unwrap_or(Value::Null);
+    let result = match method.as_str() {
+        "initialize" => json!({
+            "protocolVersion": "2025-06-18",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "fake-sse", "version": "1"}
+        }),
+        "tools/list" => json!({
+            "tools": [{
+                "name": "search",
+                "description": "Search the web",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {"query": {"type": "string"}}
+                }
+            }]
+        }),
+        "tools/call" => json!({
+            "content": [{"type": "text", "text": "RESULT: SSE, +6"}]
+        }),
+        _ => Value::Null,
+    };
+    let payload = json!({"jsonrpc": "2.0", "id": id, "result": result});
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, "text/event-stream".parse().unwrap());
+    if method == "initialize" {
+        headers.insert("mcp-session-id", "sse-session".parse().unwrap());
+    }
+    (
+        headers,
+        format!("data: \nid: 0/1\nretry: 3000\n\ndata: {payload}\n\n"),
+    )
+}
+
+async fn sse_server() -> String {
+    let app = Router::new().route("/mcp", post(sse_rpc));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    format!("http://{address}/mcp")
+}
+
 #[tokio::test]
 async fn initializes_lists_and_calls_a_tool() {
     let (url, state) = fake_server().await;
@@ -101,6 +158,20 @@ async fn initializes_lists_and_calls_a_tool() {
             "tools/call"
         ]
     );
+}
+
+#[tokio::test]
+async fn reads_sse_with_an_empty_priming_event() {
+    let url = sse_server().await;
+    let mut registry = McpRegistry::from_specs(&specs(&url)).unwrap();
+    registry.initialize().await;
+
+    assert!(registry.has_tool("search_search"));
+    let result = registry
+        .call("search_search", &json!({"query": "погода"}))
+        .await
+        .unwrap();
+    assert_eq!(result, "RESULT: SSE, +6");
 }
 
 #[tokio::test]
