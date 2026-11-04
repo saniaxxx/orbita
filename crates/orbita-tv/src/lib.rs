@@ -307,7 +307,7 @@ impl TvServer {
         };
         let _guard = lock.lock().await;
         let link = app_link(&params.app);
-        let mut client = match TvLink::open(device).await {
+        let mut client = match open_with_wake(device).await {
             Ok(link) => link,
             Err(error) => return format!("{}: не удалось подключиться ({error})", device.name()),
         };
@@ -338,7 +338,7 @@ impl TvServer {
             "https://www.youtube.com/results?search_query={}",
             percent_encode(query)
         );
-        let mut client = match TvLink::open(device).await {
+        let mut client = match open_with_wake(device).await {
             Ok(link) => link,
             Err(error) => return format!("{}: не удалось подключиться ({error})", device.name()),
         };
