@@ -8,6 +8,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use orbita_agent::llm::{FallbackLlm, LlmClient};
 use orbita_agent::{
     Agent, AppState, Config, McpRegistry, OpenAiClient, QuasarNotifier, Store, build_router,
     reminder_scheduler,
@@ -27,15 +28,30 @@ async fn main() -> Result<()> {
         warn!(recovered, "recovered running tasks after restart");
     }
 
-    let llm = OpenAiClient::new(
+    let primary = OpenAiClient::new(
         &config.openai_base_url,
         &config.openai_api_key,
         &config.openai_model,
     )
     .map_err(anyhow::Error::msg)?;
+    let llm: Arc<dyn LlmClient> = if config.fallback_base_url.trim().is_empty() {
+        Arc::new(primary)
+    } else {
+        let fallback = OpenAiClient::new(
+            &config.fallback_base_url,
+            &config.fallback_api_key,
+            &config.fallback_model,
+        )
+        .map_err(anyhow::Error::msg)?;
+        Arc::new(FallbackLlm::new(
+            Arc::new(primary),
+            Arc::new(fallback),
+            std::time::Duration::from_millis(config.primary_timeout_ms),
+        ))
+    };
     let mut agent = Agent::new(
         Arc::clone(&store),
-        Arc::new(llm),
+        llm,
         config.system_prompt.clone(),
         config.history_limit,
     );
@@ -55,6 +71,10 @@ async fn main() -> Result<()> {
         Duration::from_millis(config.scheduler_interval_ms),
     ));
 
+    tokio::spawn({
+        let agent = Arc::clone(&agent);
+        async move { agent.warm_up().await }
+    });
     let state = Arc::new(AppState {
         agent,
         model: config.openai_model.clone(),

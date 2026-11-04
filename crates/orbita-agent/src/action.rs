@@ -159,17 +159,25 @@ pub fn normalize_function_name(name: &str) -> &str {
     name.strip_prefix("smart_speaker_").unwrap_or(name)
 }
 
+/// `durationSeconds` or `amountMs, direction`, not the full JSON Schema.
+fn compact_arguments(schema: &Value) -> String {
+    schema
+        .get("properties")
+        .and_then(Value::as_object)
+        .map(|properties| properties.keys().cloned().collect::<Vec<_>>().join(", "))
+        .unwrap_or_default()
+}
+
 /// Build the JSON-grammar reply the model is asked for when functions exist.
 pub fn function_prompt(context: &SessionContext) -> String {
     let mut block =
         String::from("Доступные функции устройства. Вызывай их, когда просьба им соответствует:\n");
     for function in &context.functions {
-        let arguments = serde_json::to_string(&function.arguments).unwrap_or_else(|_| "{}".into());
         block.push_str(&format!(
-            "- {}: {} (аргументы: {})\n",
+            "- {}({}): {}\n",
             normalize_function_name(&function.name),
-            function.description,
-            arguments
+            compact_arguments(&function.arguments),
+            function.description
         ));
     }
     block.push_str(

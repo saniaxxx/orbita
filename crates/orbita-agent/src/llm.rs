@@ -3,7 +3,7 @@
 //! The agent deliberately does not depend on the processor crate: it needs
 //! only `chat/completions` with SSE and a plain-text answer.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures_util::StreamExt;
@@ -74,6 +74,48 @@ impl OpenAiClient {
             api_key: api_key.into(),
             model: model.into(),
         })
+    }
+}
+
+/// Primary provider with a local fallback: if the primary does not answer
+/// within `timeout` (or fails), the local llama.cpp answers instead.
+pub struct FallbackLlm {
+    primary: Arc<dyn LlmClient>,
+    fallback: Arc<dyn LlmClient>,
+    timeout: Duration,
+}
+
+impl FallbackLlm {
+    pub fn new(
+        primary: Arc<dyn LlmClient>,
+        fallback: Arc<dyn LlmClient>,
+        timeout: Duration,
+    ) -> Self {
+        Self {
+            primary,
+            fallback,
+            timeout,
+        }
+    }
+}
+
+#[async_trait]
+impl LlmClient for FallbackLlm {
+    async fn complete(&self, messages: &[Message]) -> Result<String, String> {
+        match tokio::time::timeout(self.timeout, self.primary.complete(messages)).await {
+            Ok(Ok(reply)) => Ok(reply),
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "primary LLM failed; using the local fallback");
+                self.fallback.complete(messages).await
+            }
+            Err(_) => {
+                tracing::warn!(
+                    timeout_ms = self.timeout.as_millis(),
+                    "primary LLM timed out; using the local fallback"
+                );
+                self.fallback.complete(messages).await
+            }
+        }
     }
 }
 

@@ -25,6 +25,11 @@ pub struct Config {
     pub history_limit: usize,
     pub scheduler_interval_ms: u64,
     pub mcp_server_urls: Vec<String>,
+    /// Local llama.cpp used when the primary provider is slow or fails.
+    pub fallback_base_url: String,
+    pub fallback_model: String,
+    pub fallback_api_key: String,
+    pub primary_timeout_ms: u64,
 }
 
 impl Config {
@@ -53,6 +58,13 @@ impl Config {
             history_limit,
             scheduler_interval_ms,
             mcp_server_urls: split_urls(&env_or("AGENT_MCP_SERVER_URLS", "")),
+            fallback_base_url: env_or(
+                "AGENT_FALLBACK_BASE_URL",
+                "http://192.168.250.102:8090/v1",
+            ),
+            fallback_model: env_or("AGENT_FALLBACK_MODEL", "qwen3.5-9b-q4km"),
+            fallback_api_key: env_or("AGENT_FALLBACK_API_KEY", ""),
+            primary_timeout_ms: env_parse("AGENT_PRIMARY_TIMEOUT_MS", 2500)?,
         })
     }
 }

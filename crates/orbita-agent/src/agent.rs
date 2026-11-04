@@ -48,6 +48,19 @@ impl Agent {
         self
     }
 
+    /// Warm the provider connection and its prompt cache before the first
+    /// real utterance (the first call after a restart can take seconds).
+    pub async fn warm_up(&self) {
+        let messages = [
+            Message::system("Ответь одним словом."),
+            Message::user("ping"),
+        ];
+        match self.llm.complete(&messages).await {
+            Ok(_) => tracing::info!("llm warmup done"),
+            Err(error) => tracing::warn!(%error, "llm warmup failed"),
+        }
+    }
+
     pub fn store(&self) -> &Arc<Store> {
         &self.store
     }
@@ -122,7 +135,9 @@ impl Agent {
                     );
                     let mut messages =
                         vec![Message::system(self.system_prompt_with_time(now, context))];
-                    for message in self.store.messages(&history_id, self.history_limit)? {
+                    // Search answers are self-contained: a short history saves
+                    // a lot of provider latency.
+                    for message in self.store.messages(&history_id, 4)? {
                         messages.push(Message {
                             role: message.role,
                             content: message.content,
@@ -133,7 +148,14 @@ impl Agent {
                         "Результаты поиска (используй их в ответе, не говори, что нет доступа к интернету):
 {results}"
                     )));
+                    let llm_started = std::time::Instant::now();
                     let raw = self.llm.complete(&messages).await?;
+                    tracing::info!(
+                        pass = "search-answer",
+                        ms = llm_started.elapsed().as_millis(),
+                        messages = messages.len(),
+                        "llm pass"
+                    );
                     let (reply, actions) = parse_reply(&raw, context, None);
                     let reply = strip_source_note(reply.trim());
                     if reply.is_empty() {
@@ -167,9 +189,15 @@ impl Agent {
         let mut completed = false;
         // A tool result goes back to the model; repeat at most three times so
         // a confused model cannot loop forever.
-        for _ in 0..4 {
+        for pass in 0..4 {
+            let llm_started = std::time::Instant::now();
             let raw = self.llm.complete(&messages).await?;
-            tracing::debug!(reply = %raw, "llm reply");
+            tracing::info!(
+                pass,
+                ms = llm_started.elapsed().as_millis(),
+                messages = messages.len(),
+                "llm pass"
+            );
             let (text, parsed_actions) = parse_reply(&raw, context, self.mcp.as_deref());
             let mut tool_calls = Vec::new();
             let mut channel_actions = Vec::new();
