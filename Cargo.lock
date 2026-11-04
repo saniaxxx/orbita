@@ -1563,6 +1563,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "orbita-core",
+ "orbita-home",
  "regex",
  "reqwest",
  "rusqlite",
