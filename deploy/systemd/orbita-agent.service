@@ -8,8 +8,6 @@ Type=simple
 WorkingDirectory=/opt/orbita
 Environment=HOST=0.0.0.0
 Environment=PORT=8080
-Environment=OPENAI_BASE_URL=http://192.168.250.102:8090/v1
-Environment=OPENAI_MODEL=qwen3.5-9b-q4km
 Environment=AGENT_DB=/var/lib/orbita-agent/agent.db
 Environment=QUASAR_API_URL=http://127.0.0.1:31121
 Environment=AGENT_MCP_SERVER_URLS=search#http://127.0.0.1:8899/mcp
@@ -17,7 +15,7 @@ Environment=AGENT_MCP_SERVER_URLS=search#http://127.0.0.1:8899/mcp
 Environment=DEFAULT_DUID=LG0000000000002793950000ab593116
 Environment=HISTORY_LIMIT=12
 Environment=SCHEDULER_INTERVAL_MS=1000
-# OPENAI_API_KEY lives in this file, not in the repository.
+# OPENAI_BASE_URL, OPENAI_MODEL and OPENAI_API_KEY live here, not in the repository.
 EnvironmentFile=-/etc/orbita/secrets.env
 ExecStart=/opt/orbita/target/release/orbita-agent
 Restart=on-failure

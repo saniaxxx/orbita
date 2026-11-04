@@ -68,7 +68,7 @@ impl Agent {
         now: DateTime<Utc>,
         context: &SessionContext,
     ) -> Result<Outcome, String> {
-        let text = text.trim();
+        let text = strip_wake_word(text);
         if text.is_empty() {
             // ASR produced nothing (cold start, noise): answer politely instead
             // of failing the dialog.
@@ -101,6 +101,58 @@ impl Agent {
         }
 
         let history_id = session.history_id();
+
+        // Search intents take a deterministic route: providers are not reliable
+        // at choosing tools on their own, so the agent calls search itself and
+        // the model only words the answer.
+        if let Some(mcp) = self.mcp.as_deref()
+            && mcp.has_tool("search_search")
+            && is_search_intent(text)
+        {
+            let started = std::time::Instant::now();
+            match mcp
+                .call("search_search", &serde_json::json!({"query": text}))
+                .await
+            {
+                Ok(results) => {
+                    tracing::info!(
+                        ms = started.elapsed().as_millis(),
+                        bytes = results.len(),
+                        "search fast path"
+                    );
+                    let mut messages =
+                        vec![Message::system(self.system_prompt_with_time(now, context))];
+                    for message in self.store.messages(&history_id, self.history_limit)? {
+                        messages.push(Message {
+                            role: message.role,
+                            content: message.content,
+                        });
+                    }
+                    messages.push(Message::user(text));
+                    messages.push(Message::tool(format!(
+                        "Результаты поиска (используй их в ответе, не говори, что нет доступа к интернету):
+{results}"
+                    )));
+                    let raw = self.llm.complete(&messages).await?;
+                    let (reply, actions) = parse_reply(&raw, context, None);
+                    let reply = reply.trim();
+                    if reply.is_empty() {
+                        return Err("LLM returned an empty answer after search".to_owned());
+                    }
+                    self.store.append_message(&history_id, "user", text)?;
+                    self.store.append_message(&history_id, "assistant", reply)?;
+                    self.store.audit("dialogue.search", &format!("session={history_id}"))?;
+                    return Ok(Outcome {
+                        text: reply.to_owned(),
+                        actions,
+                    });
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "search fast path failed");
+                }
+            }
+        }
+
         let mut messages = vec![Message::system(self.system_prompt_with_time(now, context))];
         for message in self.store.messages(&history_id, self.history_limit)? {
             messages.push(Message {
@@ -117,6 +169,7 @@ impl Agent {
         // a confused model cannot loop forever.
         for _ in 0..4 {
             let raw = self.llm.complete(&messages).await?;
+            tracing::debug!(reply = %raw, "llm reply");
             let (text, parsed_actions) = parse_reply(&raw, context, self.mcp.as_deref());
             let mut tool_calls = Vec::new();
             let mut channel_actions = Vec::new();
@@ -140,10 +193,25 @@ impl Agent {
                 let Action::ToolCall { name, arguments } = action else {
                     unreachable!("tool_calls only contains ToolCall");
                 };
+                let started = std::time::Instant::now();
                 let result = match self.mcp.as_ref() {
                     Some(mcp) => mcp.call(&name, &arguments).await,
                     None => Err("MCP is not configured".to_owned()),
                 };
+                match &result {
+                    Ok(value) => tracing::info!(
+                        tool = %name,
+                        ms = started.elapsed().as_millis(),
+                        bytes = value.to_string().len(),
+                        "mcp tool call"
+                    ),
+                    Err(error) => tracing::warn!(
+                        tool = %name,
+                        ms = started.elapsed().as_millis(),
+                        %error,
+                        "mcp tool call failed"
+                    ),
+                }
                 results.push(match result {
                     Ok(value) => format!("{name}: {value}"),
                     Err(error) => format!("{name}: ошибка: {error}"),
@@ -195,6 +263,44 @@ impl Agent {
         }
         prompt
     }
+}
+
+/// Questions about changing facts go to search without asking the model.
+fn is_search_intent(text: &str) -> bool {
+    let text = text.to_lowercase();
+    [
+        "погод",
+        "прогноз",
+        "температур",
+        "новост",
+        "курс ",
+        "курса",
+        "доллар",
+        "евро",
+        "цен",
+        "стоимост",
+        "пробк",
+        "что случилось",
+    ]
+    .iter()
+    .any(|word| text.contains(word))
+}
+
+/// Drop the wake word the ASR keeps at the start ("Алиса, ..."): the station
+/// address is channel noise, and the model behaves better without it.
+fn strip_wake_word(text: &str) -> &str {
+    let trimmed = text.trim();
+    let lower = trimmed.to_lowercase();
+    for form in ["алиса", "алекса"] {
+        if let Some(rest) = lower.strip_prefix(form) {
+            let rest = rest.trim_start_matches([' ', ',', '!', '.', ':', ';']);
+            let offset = trimmed.len() - rest.len();
+            if offset > 0 && !rest.is_empty() {
+                return trimmed[offset..].trim();
+            }
+        }
+    }
+    trimmed
 }
 
 /// Whether the channel offered the function this action needs.
@@ -465,6 +571,14 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[test]
+    fn strips_the_wake_word() {
+        assert_eq!(strip_wake_word("Алиса, какая погода?"), "какая погода?");
+        assert_eq!(strip_wake_word("алиса! громче"), "громче");
+        assert_eq!(strip_wake_word("Алиса"), "Алиса");
+        assert_eq!(strip_wake_word("привет"), "привет");
     }
 
     #[test]

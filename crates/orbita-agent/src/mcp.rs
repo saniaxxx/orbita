@@ -281,7 +281,9 @@ impl McpRegistry {
             return String::new();
         }
         let mut block = String::from(
-            "Серверные инструменты (вызывай их через function_calls, результат вернётся тебе):\n",
+            "Серверные инструменты. Если вопрос о погоде, новостях, курсах, ценах, \
+             событиях или других меняющихся данных — обязательно вызови подходящий \
+             инструмент, не отвечай по памяти и не говори, что нет доступа к интернету: \n",
         );
         for tool in self.tools() {
             let arguments = serde_json::to_string(&tool.arguments).unwrap_or_else(|_| "{}".into());
@@ -290,6 +292,11 @@ impl McpRegistry {
                 tool.exposed_name, tool.description, arguments
             ));
         }
+        block.push_str(
+            "Ответ верни одним JSON-объектом: {\"text\": \"короткий ответ\", \
+             \"function_calls\": [{\"name\": \"<имя>\", \"arguments\": {}}]}. \
+             Результат вызова придёт тебе следующим сообщением — по нему и отвечай.",
+        );
         block
     }
 }

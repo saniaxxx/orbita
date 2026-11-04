@@ -240,7 +240,8 @@ async fn agent_runs_the_tool_and_answers_again() {
 
     let outcome = agent
         .process(
-            "какая погода в москве",
+            // Not a search intent: the model decides to call the tool itself.
+            "расскажи про море",
             &SessionKey::station("duid"),
             &SessionContext::default(),
         )
