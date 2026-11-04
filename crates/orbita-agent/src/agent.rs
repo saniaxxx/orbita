@@ -101,9 +101,7 @@ impl Agent {
         }
 
         let history_id = session.history_id();
-        let mut messages = vec![Message::system(
-            self.system_prompt_with_time(now, context),
-        )];
+        let mut messages = vec![Message::system(self.system_prompt_with_time(now, context))];
         for message in self.store.messages(&history_id, self.history_limit)? {
             messages.push(Message {
                 role: message.role,
@@ -487,7 +485,10 @@ mod tests {
         );
         assert_eq!(parse_reply("{\"text\": \"Да.\"}", &context, None).0, "Да.");
         assert_eq!(parse_reply("{\"a\": \"одно\"}", &context, None).0, "одно");
-        assert_eq!(parse_reply("просто текст", &context, None).0, "просто текст");
+        assert_eq!(
+            parse_reply("просто текст", &context, None).0,
+            "просто текст"
+        );
         assert_eq!(parse_reply("{\"a\": 1}", &context, None).0, "{\"a\": 1}");
     }
 

@@ -40,8 +40,8 @@ async fn main() -> Result<()> {
         config.history_limit,
     );
     if !config.mcp_server_urls.is_empty() {
-        let mut mcp = McpRegistry::from_specs(&config.mcp_server_urls)
-            .map_err(anyhow::Error::msg)?;
+        let mut mcp =
+            McpRegistry::from_specs(&config.mcp_server_urls).map_err(anyhow::Error::msg)?;
         mcp.initialize().await;
         info!(tools = mcp.tools().count(), "MCP tools loaded");
         agent = agent.with_mcp(Arc::new(mcp));

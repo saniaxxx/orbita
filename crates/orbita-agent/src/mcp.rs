@@ -72,8 +72,8 @@ impl McpServer {
                 None,
             )
             .await?;
-        let session = session
-            .ok_or_else(|| "MCP initialize returned no Mcp-Session-Id".to_owned())?;
+        let session =
+            session.ok_or_else(|| "MCP initialize returned no Mcp-Session-Id".to_owned())?;
         self.post(
             json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
             Some(&session),

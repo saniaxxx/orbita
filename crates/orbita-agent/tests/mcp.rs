@@ -6,17 +6,12 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use axum::{
-    Json, Router,
-    http::HeaderMap,
-    routing::post,
-};
+use axum::{Json, Router, http::HeaderMap, routing::post};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use orbita_agent::{
-    Agent, LlmClient, McpRegistry, SessionContext, SessionKey, Store,
-    llm::Message,
+    Agent, LlmClient, McpRegistry, SessionContext, SessionKey, Store, llm::Message,
 };
 
 #[derive(Clone, Default)]
@@ -61,7 +56,10 @@ async fn rpc(
     if method == "initialize" {
         headers.insert("mcp-session-id", "test-session".parse().unwrap());
     }
-    (headers, Json(json!({"jsonrpc": "2.0", "id": id, "result": result})))
+    (
+        headers,
+        Json(json!({"jsonrpc": "2.0", "id": id, "result": result})),
+    )
 }
 
 async fn fake_server() -> (String, FakeMcp) {
@@ -96,7 +94,12 @@ async fn initializes_lists_and_calls_a_tool() {
     assert_eq!(result, "RESULT: +5, ясно");
     assert_eq!(
         state.methods.lock().unwrap().as_slice(),
-        ["initialize", "notifications/initialized", "tools/list", "tools/call"]
+        [
+            "initialize",
+            "notifications/initialized",
+            "tools/list",
+            "tools/call"
+        ]
     );
 }
 
@@ -161,13 +164,8 @@ async fn agent_runs_the_tool_and_answers_again() {
         seen: Mutex::new(Vec::new()),
     });
     let store = Arc::new(Store::open(":memory:").unwrap());
-    let agent = Agent::new(
-        Arc::clone(&store),
-        llm.clone(),
-        "system",
-        10,
-    )
-    .with_mcp(Arc::new(registry));
+    let agent =
+        Agent::new(Arc::clone(&store), llm.clone(), "system", 10).with_mcp(Arc::new(registry));
 
     let outcome = agent
         .process(
