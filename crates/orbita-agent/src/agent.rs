@@ -345,54 +345,120 @@ fn parse_reply(
     context: &SessionContext,
     mcp: Option<&McpRegistry>,
 ) -> (String, Vec<Action>) {
-    let trimmed = raw.trim();
-    let Some(object) = serde_json::from_str::<Value>(trimmed)
+    let cleaned = strip_code_fences(raw.trim());
+
+    // Our JSON object shape, or an OpenAI-style role/content object.
+    if let Some(object) = serde_json::from_str::<Value>(&cleaned)
         .ok()
         .and_then(|value| value.as_object().cloned())
-    else {
-        return (trimmed.to_owned(), Vec::new());
-    };
+    {
+        let text = ["text", "reply", "content", "answer", "message", "response"]
+            .iter()
+            .find_map(|key| object.get(*key).and_then(Value::as_str))
+            .unwrap_or("");
+        let mut actions = object
+            .get("function_calls")
+            .and_then(Value::as_array)
+            .map(|calls| calls_to_actions(calls, context, mcp))
+            .unwrap_or_default();
+        if text.is_empty() && actions.is_empty() && !object.contains_key("function_calls") {
+            let strings: Vec<&str> = object.values().filter_map(Value::as_str).collect();
+            if strings.len() == 1 {
+                return (strings[0].to_owned(), Vec::new());
+            }
+            return (cleaned, Vec::new());
+        }
+        if text.is_empty() && actions.is_empty() {
+            return (String::new(), Vec::new());
+        }
+        return (sanitize_text(text), std::mem::take(&mut actions));
+    }
 
-    // The model may answer with our `{"text": ...}` shape or with an
-    // OpenAI-style `{"role": "assistant", "content": ...}` object.
-    let text = ["text", "reply", "content", "answer", "message", "response"]
-        .iter()
-        .find_map(|key| object.get(*key).and_then(Value::as_str))
-        .unwrap_or("");
+    // Some providers emit `function_calls: [...]` without the JSON object wrapper.
+    if let Some((text, actions)) = parse_loose_calls(&cleaned, context, mcp) {
+        return (sanitize_text(&text), actions);
+    }
 
+    (sanitize_text(&cleaned), Vec::new())
+}
+
+fn strip_code_fences(text: &str) -> String {
+    let text = text.trim();
+    let text = text.strip_prefix("```json").or_else(|| text.strip_prefix("```")).unwrap_or(text);
+    text.trim().trim_end_matches("```").trim().to_owned()
+}
+
+fn calls_to_actions(
+    calls: &[Value],
+    context: &SessionContext,
+    mcp: Option<&McpRegistry>,
+) -> Vec<Action> {
     let mut actions = Vec::new();
-    if let Some(calls) = object.get("function_calls").and_then(Value::as_array) {
-        for call in calls {
-            let Some(name) = call.get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            let arguments = call.get("arguments").cloned().unwrap_or(Value::Null);
-            if context.has(normalize_function_name(name)) {
-                actions.push(Action::Directive {
-                    name: name.to_owned(),
-                    arguments,
-                });
-            } else if mcp.is_some_and(|mcp| mcp.has_tool(name)) {
-                actions.push(Action::ToolCall {
-                    name: name.to_owned(),
-                    arguments,
-                });
+    for call in calls {
+        let Some(name) = call.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let arguments = call.get("arguments").cloned().unwrap_or(Value::Null);
+        if context.has(normalize_function_name(name)) {
+            actions.push(Action::Directive {
+                name: name.to_owned(),
+                arguments,
+            });
+        } else if mcp.is_some_and(|mcp| mcp.has_tool(name)) {
+            actions.push(Action::ToolCall {
+                name: name.to_owned(),
+                arguments,
+            });
+        } else {
+            warn!(%name, "model called an unknown function; dropping it");
+        }
+    }
+    actions
+}
+
+/// Handle `function_calls: [...]`, a bare JSON array of calls, or text followed
+/// by such a block (the block must not be spoken).
+fn parse_loose_calls(
+    text: &str,
+    context: &SessionContext,
+    mcp: Option<&McpRegistry>,
+) -> Option<(String, Vec<Action>)> {
+    let lower = text.to_lowercase();
+    let marker = lower.find("function_calls:");
+    let (prefix, rest) = match marker {
+        Some(index) => (&text[..index], text[index + "function_calls:".len()..].trim()),
+        None => {
+            let rest = text.trim();
+            if rest.starts_with('[') {
+                ("", rest)
             } else {
-                warn!(%name, "model called an unknown function; dropping it");
+                return None;
             }
         }
-    }
+    };
+    let array_text = rest.split(']').next().map(|part| format!("{part}]"))?;
+    let calls: Vec<Value> = serde_json::from_str(&array_text).ok()?;
+    let actions = calls_to_actions(&calls, context, mcp);
+    Some((prefix.trim().to_owned(), actions))
+}
 
-    if text.is_empty() && actions.is_empty() && !object.contains_key("function_calls") {
-        // Older prompt shape: a single string value in the object.
-        let strings: Vec<&str> = object.values().filter_map(Value::as_str).collect();
-        if strings.len() == 1 {
-            return (strings[0].to_owned(), Vec::new());
-        }
-        // Unknown object shape: keep the raw reply rather than an empty answer.
-        return (trimmed.to_owned(), Vec::new());
+/// Never speak raw JSON or a tool-call block if it slipped through.
+fn sanitize_text(text: &str) -> String {
+    let lower = text.to_lowercase();
+    let cut = ["function_calls:", "```json"]
+        .iter()
+        .filter_map(|marker| lower.find(marker))
+        .min()
+        .or_else(|| {
+            let trimmed = text.trim_start();
+            trimmed
+                .starts_with('{')
+                .then_some(text.len() - trimmed.len())
+        });
+    match cut {
+        Some(index) => text[..index].trim().to_owned(),
+        None => text.trim().to_owned(),
     }
-    (text.to_owned(), actions)
 }
 
 #[cfg(test)]
@@ -611,6 +677,35 @@ mod tests {
             "просто текст"
         );
         assert_eq!(parse_reply("{\"a\": 1}", &context, None).0, "{\"a\": 1}");
+    }
+
+    #[test]
+    fn parses_loose_function_calls() {
+        let context = station_context();
+        let (text, actions) = parse_reply(
+            "function_calls: [{\"name\": \"timer_set\", \"arguments\": {\"durationSeconds\": 60}}]",
+            &context,
+            None,
+        );
+        assert!(text.is_empty());
+        assert_eq!(
+            actions,
+            vec![Action::Directive {
+                name: "timer_set".to_owned(),
+                arguments: json!({"durationSeconds": 60}),
+            }]
+        );
+    }
+
+    #[test]
+    fn strips_fences_and_json_tails() {
+        let context = SessionContext::default();
+        assert_eq!(parse_reply("```json\n{\"text\": \"Привет.\"}\n```", &context, None).0, "Привет.");
+        assert_eq!(
+            parse_reply("Стих готов. function_calls: [{\"name\": \"x\", \"arguments\": {}}]", &context, None).0,
+            "Стих готов."
+        );
+        assert_eq!(sanitize_text("{\"a\": 1}"), "");
     }
 
     #[test]
