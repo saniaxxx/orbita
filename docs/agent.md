@@ -105,6 +105,10 @@ cargo run -p orbita-cli -- ask "напомни через одну минуту 
 ```sh
 cargo test -p orbita-agent
 cargo clippy -p orbita-agent --all-targets -- -D warnings
+
+# реальный MCP-сервер (на хосте, откуда он доступен)
+AGENT_MCP_URL=http://127.0.0.1:8899/mcp \
+  cargo test -p orbita-agent --test mcp real_search_server_if_configured
 ```
 
 36 unit-тестов, контракт `/process`, тесты директив (`tests/directives.rs`,

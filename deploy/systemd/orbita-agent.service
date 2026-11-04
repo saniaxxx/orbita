@@ -1,7 +1,7 @@
 [Unit]
 Description=orbita-agent: voice dialogue, sessions and reminders
-After=network-online.target
-Wants=network-online.target
+After=network-online.target orbita-mcp-search.service
+Wants=network-online.target orbita-mcp-search.service
 
 [Service]
 Type=simple
