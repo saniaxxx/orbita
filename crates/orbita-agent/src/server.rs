@@ -145,6 +145,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                 let session = SessionKey::station(duid.clone());
                 let context = channel.context();
                 info!(%duid, text = %data.text, functions = context.functions.len(), "process");
+                let started = std::time::Instant::now();
                 let (outcome, ok) = match state.agent.process(&data.text, &session, &context).await
                 {
                     Ok(outcome) => (outcome, true),
@@ -153,6 +154,13 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                         (Outcome::text("Извини, не получилось."), false)
                     }
                 };
+                info!(
+                    %duid,
+                    ms = started.elapsed().as_millis(),
+                    reply = %outcome.text,
+                    actions = outcome.actions.len(),
+                    "process done"
+                );
                 let directives = render_directives(&state, &channel, &outcome, &duid, &data.text);
                 let response = json!({
                     "type": "partialResponse",
