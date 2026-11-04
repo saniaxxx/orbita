@@ -216,9 +216,15 @@ pub fn multistream(
             continue;
         }
 
-        let phonemes = match dictionary.get(word) {
-            Some(phonemes) => phonemes.clone(),
-            None => convert(word),
+        // An explicit `+` always wins over the dictionary: it is the caller's
+        // way to fix a wrong or missing stress mark without editing the model.
+        let phonemes = if word.contains('+') {
+            convert(word)
+        } else {
+            match dictionary.get(word) {
+                Some(phonemes) => phonemes.clone(),
+                None => convert(word),
+            }
         };
         for phoneme in phonemes.split_whitespace() {
             phones.push(Phone {
@@ -303,6 +309,26 @@ mod tests {
         assert_eq!(convert("ёжик"), "j o0 zh i0 k");
         assert_eq!(convert("съесть"), "s j e0 s tj");
         assert_eq!(convert("пьеса"), "pj j e0 s a0");
+    }
+
+    #[test]
+    fn explicit_stress_bypasses_the_dictionary() {
+        assert_eq!(convert("т+естовая"), "tj e1 s t o0 v a0 j a0");
+
+        let dictionary =
+            HashMap::from([("тестовая".to_owned(), "tj e0 s t o0 v a1 j a0".to_owned())]);
+        let symbols = [
+            "_", "^", "$", " ", "tj", "e0", "e1", "s", "t", "o0", "v", "a0", "a1", "j",
+        ];
+        let phoneme_ids: HashMap<String, i64> = symbols
+            .iter()
+            .enumerate()
+            .map(|(index, symbol)| ((*symbol).to_owned(), index as i64))
+            .collect();
+        let out = multistream("т+естовая", &dictionary, &phoneme_ids, 2);
+        let phonemes: Vec<i64> = out.ids.iter().map(|ids| ids[0]).collect();
+        assert!(phonemes.contains(&phoneme_ids["e1"]));
+        assert!(!phonemes.contains(&phoneme_ids["a1"]));
     }
 
     #[test]
