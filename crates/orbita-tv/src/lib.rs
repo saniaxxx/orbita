@@ -352,7 +352,7 @@ async fn open_with_wake(device: &TvDevice) -> Result<TvLink, String> {
             let Some(mac) = &device.mac else {
                 return Err(error);
             };
-            protocol::wake_on_lan(mac, device.broadcast.as_deref())?;
+            protocol::wake_on_lan(mac, &device.host, device.broadcast.as_deref())?;
             for _ in 0..4 {
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 if let Ok(link) = TvLink::open(device).await {

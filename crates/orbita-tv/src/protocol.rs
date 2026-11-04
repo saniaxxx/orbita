@@ -393,7 +393,7 @@ fn key_message(key_code: i32) -> RemoteMessage {
 }
 
 /// Send a Wake-on-LAN magic packet. Harmless when the TV is already awake.
-pub fn wake_on_lan(mac: &str, broadcast: Option<&str>) -> Result<(), String> {
+pub fn wake_on_lan(mac: &str, host: &str, broadcast: Option<&str>) -> Result<(), String> {
     let octets: Vec<u8> = mac
         .split([':', '-'])
         .map(|part| u8::from_str_radix(part, 16))
@@ -411,14 +411,19 @@ pub fn wake_on_lan(mac: &str, broadcast: Option<&str>) -> Result<(), String> {
     socket
         .set_broadcast(true)
         .map_err(|error| format!("WoL broadcast: {error}"))?;
-    let mut targets = vec![Ipv4Addr::BROADCAST];
-    if let Some(broadcast) = broadcast
-        && let Ok(address) = broadcast.parse::<Ipv4Addr>()
-    {
-        targets.push(address);
+    let mut targets = vec![host.to_owned()];
+    if let Some(broadcast) = broadcast {
+        targets.push(broadcast.to_owned());
     }
-    for address in targets {
-        let _ = socket.send_to(&packet, (address, 9));
+    targets.push(Ipv4Addr::BROADCAST.to_string());
+    // Ports 7 and 9 are both used by WoL implementations; repeat each packet
+    // because the first one can be lost while the NIC is waking up.
+    for target in &targets {
+        for port in [7u16, 9u16] {
+            for _ in 0..2 {
+                let _ = socket.send_to(&packet, (target.as_str(), port));
+            }
+        }
     }
     Ok(())
 }
