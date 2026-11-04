@@ -39,9 +39,10 @@ Firewall намеренно не настраивался — домашний �
 
 ### Control plane, CT 101
 
-- `orbita-agent` — `0.0.0.0:8080` вместо processor: `/process`, LLM
-  `http://192.168.250.102:8090/v1`, модель `qwen3.5-9b-q4km`, MCP
-  `search#http://127.0.0.1:8899/mcp`.
+- `orbita-agent` — `0.0.0.0:8080` вместо processor: `/process`, LLM —
+  внешний провайдер (адрес/модель/ключ в `/etc/orbita/secrets.env`, D-16),
+  MCP `search#http://127.0.0.1:8899/mcp`; поиск для погоды/новостей/курсов
+  вызывается детерминированно.
 - `orbita-mcp-search` — `127.0.0.1:8899`, SearXNG в CT 100 слушает
   `0.0.0.0:8888`.
 - `orbita-dashboard` — `0.0.0.0:8901` (открыт в LAN по решению владельца).
