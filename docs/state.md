@@ -88,7 +88,7 @@ Firewall намеренно не настраивался — домашний �
 | `orbita-dashboard` | SSE, snapshot, demo, статический UI |
 | `orbita-cli` | warmup, ask, latency |
 | `orbita-glagol` | спайк локального Glagol: mDNS, токен, `wss`, `audio_play`; **на стенде не проверялся** |
-| `orbita-home` | модель устройств, safe-write, stale, grants; CLI; **на стенде не проверялся** |
+| `orbita-home` | подключён к агенту (D-17): 20 светильников Wiren Board, чтение состояния проверено; переключение ждёт проверки пользователем |
 | `orbita-agent` | **заменил processor на 8080** (D-14): `/process`, SQLite, напоминания, LLM; **директивы станции реализованы** (D-15): громкость, таймеры быстрым путём, остальное — `function_calls` LLM; **MCP-поиск реализован и развёрнут**: `search_search` через `orbita-mcp-search`, два прохода LLM. На стенде 04.11.2026 real-тест 5/5 (включая `real_search_server_if_configured`), в журнале `MCP tools loaded tools=1`, живой WS-запрос «какая сейчас погода в Москве» вернул ответ после поиска (стенд, без станции; не L4). Юнит `orbita-processor` удалён со стенда, `orbita-warmup` ждёт агента |
 
 ## 4. Что сделано за последние дни
