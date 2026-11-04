@@ -67,12 +67,12 @@ impl HomeService {
             _ if off => (
                 "on_off".to_owned(),
                 Action::OnOff { on: false },
-                format!("Выключила {name}."),
+                format!("Выключила: {name}."),
             ),
             _ => (
                 "on_off".to_owned(),
                 Action::OnOff { on: true },
-                format!("Включила {name}."),
+                format!("Включила: {name}."),
             ),
         };
         Some(HomeCommand {
