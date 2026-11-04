@@ -99,8 +99,33 @@ impl Agent {
             return Ok(Outcome::text("Я вас не расслышала. Повторите, пожалуйста."));
         }
 
-        if let Some(home) = self.home.as_deref() {
-            let lower = text.to_lowercase();
+        let lower = text.to_lowercase();
+        // TV commands are deterministic and must not fall through to the
+        // home fast path: «включи телевизор в детской» used to toggle the
+        // children's room light because it contains «включи» and «детская».
+        if let Some(mcp) = self.mcp.as_deref()
+            && mcp.has_tool("tv_state")
+            && let Some(intent) = parse_tv_intent(&lower)
+        {
+            let (tool, arguments) = intent.call(text);
+            let started = std::time::Instant::now();
+            return match mcp.call(tool, &arguments).await {
+                Ok(reply) => {
+                    tracing::info!(tool, ms = started.elapsed().as_millis(), "tv fast path");
+                    Ok(Outcome::text(reply))
+                }
+                Err(error) => {
+                    tracing::warn!(%error, tool, "tv fast path failed");
+                    Ok(Outcome::text(
+                        "Не получилось: телевизор недоступен.".to_owned(),
+                    ))
+                }
+            };
+        }
+
+        if let Some(home) = self.home.as_deref()
+            && !mentions_non_light_device(&lower)
+        {
             if asks_about_lights(&lower) {
                 return Ok(Outcome::text(home.status_line()));
             }
@@ -402,6 +427,151 @@ fn asks_about_lights(lower: &str) -> bool {
         && ["включён", "включен", "выключен", "выключён", "горит"]
             .iter()
             .any(|word| lower.contains(word))
+}
+
+/// Does the utterance mention a TV at all?
+fn mentions_tv(lower: &str) -> bool {
+    lower.split(|c: char| !c.is_alphanumeric()).any(|word| {
+        word == "тв"
+            || word.starts_with("телевизор")
+            || word.starts_with("телик")
+            || word.starts_with("телек")
+            || word.starts_with("сбер")
+            || word == "tcl"
+            || word == "тцл"
+    })
+}
+
+/// Does the utterance mention a device that is not a light?
+///
+/// The home fast path is intentionally simple (verb + room alias), so it must
+/// not run when the user talks about another actuator: «включи телевизор в
+/// детской» once toggled the children's room light. Unknown devices fall back
+/// to the LLM, which is safer than a blind light command.
+fn mentions_non_light_device(lower: &str) -> bool {
+    if mentions_tv(lower) {
+        return true;
+    }
+    lower.split(|c: char| !c.is_alphanumeric()).any(|word| {
+        word.starts_with("вытяжк")
+            || word.starts_with("приточк")
+            || word.starts_with("вентиляц")
+            || word.starts_with("вентилятор")
+            || word.starts_with("калорифер")
+            || word.starts_with("увлажн")
+            || word.starts_with("котел")
+            || word.starts_with("котёл")
+            || word.starts_with("замок")
+            || word.starts_with("замк")
+            || word.starts_with("ворот")
+            || word.starts_with("калитк")
+            || word.starts_with("розетк")
+            || word.starts_with("штор")
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TvIntent {
+    Power(bool),
+    Volume(&'static str),
+    SetVolume(u32),
+    App(String),
+    Input(String),
+    State,
+}
+
+impl TvIntent {
+    fn call(&self, text: &str) -> (&'static str, serde_json::Value) {
+        let device = text.trim();
+        match self {
+            Self::Power(on) => ("tv_power", serde_json::json!({"device": device, "on": on})),
+            Self::Volume(action) => (
+                "tv_volume",
+                serde_json::json!({"device": device, "action": action}),
+            ),
+            Self::SetVolume(level) => (
+                "tv_volume",
+                serde_json::json!({"device": device, "action": "set", "level": level}),
+            ),
+            Self::App(app) => ("tv_app", serde_json::json!({"device": device, "app": app})),
+            Self::Input(input) => (
+                "tv_input",
+                serde_json::json!({"device": device, "input": input}),
+            ),
+            Self::State => ("tv_state", serde_json::json!({"device": device})),
+        }
+    }
+}
+
+/// Parse a TV command without the LLM. The whole utterance is passed as the
+/// device reference, so the TV server can pick the room itself.
+fn parse_tv_intent(lower: &str) -> Option<TvIntent> {
+    if !mentions_tv(lower) {
+        return None;
+    }
+    for (needle, app) in [
+        ("youtube", "youtube"),
+        ("ютуб", "youtube"),
+        ("netflix", "netflix"),
+        ("нетфликс", "netflix"),
+        ("kinopoisk", "kinopoisk"),
+        ("кинопоиск", "kinopoisk"),
+        ("ivi", "ivi"),
+        ("иви", "ivi"),
+        ("okko", "okko"),
+        ("окко", "okko"),
+    ] {
+        if lower.contains(needle) {
+            return Some(TvIntent::App(app.to_owned()));
+        }
+    }
+    for number in 1..=4 {
+        if lower.contains(&format!("hdmi{number}")) || lower.contains(&format!("hdmi {number}")) {
+            return Some(TvIntent::Input(format!("hdmi{number}")));
+        }
+    }
+    if (lower.contains("громк") || lower.contains("звук"))
+        && let Some(level) = volume_level(lower)
+    {
+        return Some(TvIntent::SetVolume(level));
+    }
+    if lower.contains("громче") || lower.contains("погромче") {
+        return Some(TvIntent::Volume("up"));
+    }
+    if lower.contains("тише") || lower.contains("потише") {
+        return Some(TvIntent::Volume("down"));
+    }
+    if lower.contains("какой")
+        || lower.contains("что с")
+        || lower.contains("состояни")
+        || lower.contains("включён")
+        || lower.contains("включен")
+        || lower.contains("какая громкость")
+        || lower.contains("сколько громкость")
+    {
+        return Some(TvIntent::State);
+    }
+    if lower.contains("выключ") || lower.contains("выруб") || lower.contains("погаси")
+    {
+        return Some(TvIntent::Power(false));
+    }
+    if lower.contains("включ") || lower.contains("вруб") {
+        return Some(TvIntent::Power(true));
+    }
+    if lower.contains("громк") || lower.contains("звук") {
+        return Some(TvIntent::State);
+    }
+    None
+}
+
+fn volume_level(lower: &str) -> Option<u32> {
+    let index = lower.find("громк").or_else(|| lower.find("звук"))?;
+    let digits: String = lower[index..]
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    digits.parse::<u32>().ok().map(|level| level.min(100))
 }
 
 /// Whether the channel offered the function this action needs.
@@ -841,6 +1011,58 @@ mod tests {
                 arguments: json!({"durationSeconds": 60}),
             }]
         );
+    }
+
+    #[test]
+    fn parses_tv_intents_without_the_llm() {
+        assert_eq!(
+            parse_tv_intent("включи телевизор в гостиной"),
+            Some(TvIntent::Power(true))
+        );
+        assert_eq!(
+            parse_tv_intent("выключи телевизор"),
+            Some(TvIntent::Power(false))
+        );
+        assert_eq!(
+            parse_tv_intent("какой телевизор включён"),
+            Some(TvIntent::State)
+        );
+        assert_eq!(
+            parse_tv_intent("какая громкость на телевизоре"),
+            Some(TvIntent::State)
+        );
+        assert_eq!(
+            parse_tv_intent("сделай громче телевизор"),
+            Some(TvIntent::Volume("up"))
+        );
+        assert_eq!(
+            parse_tv_intent("громкость 30 на телевизоре"),
+            Some(TvIntent::SetVolume(30))
+        );
+        assert_eq!(
+            parse_tv_intent("включи ютуб на телевизоре"),
+            Some(TvIntent::App("youtube".to_owned()))
+        );
+        assert_eq!(
+            parse_tv_intent("переключи телевизор на hdmi2"),
+            Some(TvIntent::Input("hdmi2".to_owned()))
+        );
+    }
+
+    #[test]
+    fn light_commands_are_not_tv_intents() {
+        assert!(parse_tv_intent("включи свет в детской").is_none());
+        assert!(!mentions_tv("включи свет в детской"));
+        assert!(mentions_tv("включи телевизор в детской"));
+    }
+
+    #[test]
+    fn non_light_devices_bypass_the_home_fast_path() {
+        assert!(mentions_non_light_device("включи телевизор в детской"));
+        assert!(mentions_non_light_device("включи вытяжку в санузле"));
+        assert!(mentions_non_light_device("открой замок"));
+        assert!(!mentions_non_light_device("включи свет в детской"));
+        assert!(!mentions_non_light_device("выключи кухню"));
     }
 
     #[test]

@@ -113,6 +113,35 @@ impl TvConfig {
             };
         };
         let needle = query.to_lowercase();
+        // A room in the utterance is decisive: it must select that TV or
+        // report that it is not controllable. Otherwise a generic «телевизор»
+        // alias could pick the wrong room.
+        let by_room: Vec<&TvDevice> = self
+            .devices
+            .iter()
+            .filter(|device| {
+                device
+                    .room
+                    .as_deref()
+                    .is_some_and(|room| phrase_matches(&needle, room))
+            })
+            .collect();
+        if !by_room.is_empty() {
+            let controllable: Vec<&TvDevice> = by_room
+                .iter()
+                .copied()
+                .filter(|device| device.enabled)
+                .collect();
+            return match controllable.as_slice() {
+                [device] => Ok(device),
+                [] => Err(format!(
+                    "телевизор в комнате «{}» есть, но не управляется ({})",
+                    by_room[0].name(),
+                    by_room[0].protocol
+                )),
+                _ => Err("в этой комнате несколько телевизоров".to_owned()),
+            };
+        }
         let matches: Vec<&TvDevice> = enabled
             .into_iter()
             .filter(|device| device.matches(&needle))
@@ -217,8 +246,8 @@ mod tests {
                 },
                 TvDevice {
                     id: "sber".to_owned(),
-                    room: None,
-                    aliases: vec!["сбер".to_owned()],
+                    room: Some("детская".to_owned()),
+                    aliases: vec!["сбер".to_owned(), "телевизор в детской".to_owned()],
                     host: "192.168.250.111".to_owned(),
                     mac: None,
                     cert: None,
@@ -263,5 +292,11 @@ mod tests {
             "tcl"
         );
         assert_eq!(config.resolve(Some("телик в гостиной")).unwrap().id, "tcl");
+    }
+
+    #[test]
+    fn a_room_does_not_fall_back_to_another_tv() {
+        let config = config();
+        assert!(config.resolve(Some("включи телевизор в детской")).is_err());
     }
 }
