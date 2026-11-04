@@ -54,6 +54,7 @@ python3.13 -m venv /tmp/av-poc
 | `tv_key` | HOME, BACK, UP/DOWN/LEFT/RIGHT, OK, PLAY_PAUSE, NEXT, PREVIOUS, STOP, HDMI1–4, TV, INPUT; `POWER` запрещён |
 | `tv_volume` | up/down/mute/unmute/set |
 | `tv_app` | youtube, netflix, kinopoisk, ivi, okko или deep link |
+| `tv_search` | открыть результаты поиска YouTube по запросу; видео само не запускается |
 | `tv_input` | hdmi1–hdmi4, tv |
 | `tv_list` | что настроено |
 

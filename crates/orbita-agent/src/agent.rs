@@ -449,7 +449,7 @@ fn mentions_tv(lower: &str) -> bool {
 /// детской» once toggled the children's room light. Unknown devices fall back
 /// to the LLM, which is safer than a blind light command.
 fn mentions_non_light_device(lower: &str) -> bool {
-    if mentions_tv(lower) {
+    if mentions_tv(lower) || lower.contains("ютуб") || lower.contains("youtube") {
         return true;
     }
     lower.split(|c: char| !c.is_alphanumeric()).any(|word| {
@@ -476,6 +476,7 @@ enum TvIntent {
     Volume(&'static str),
     SetVolume(u32),
     App(String),
+    Search(String),
     Input(String),
     State,
 }
@@ -494,6 +495,10 @@ impl TvIntent {
                 serde_json::json!({"device": device, "action": "set", "level": level}),
             ),
             Self::App(app) => ("tv_app", serde_json::json!({"device": device, "app": app})),
+            Self::Search(query) => (
+                "tv_search",
+                serde_json::json!({"device": device, "query": query}),
+            ),
             Self::Input(input) => (
                 "tv_input",
                 serde_json::json!({"device": device, "input": input}),
@@ -506,8 +511,12 @@ impl TvIntent {
 /// Parse a TV command without the LLM. The whole utterance is passed as the
 /// device reference, so the TV server can pick the room itself.
 fn parse_tv_intent(lower: &str) -> Option<TvIntent> {
-    if !mentions_tv(lower) {
+    let has_youtube = lower.contains("ютуб") || lower.contains("youtube");
+    if !mentions_tv(lower) && !has_youtube {
         return None;
+    }
+    if let Some(query) = youtube_search_query(lower) {
+        return Some(TvIntent::Search(query));
     }
     for (needle, app) in [
         ("youtube", "youtube"),
@@ -562,6 +571,71 @@ fn parse_tv_intent(lower: &str) -> Option<TvIntent> {
         return Some(TvIntent::State);
     }
     None
+}
+
+/// Extract a YouTube search query from phrases like «найди на ютубе котиков»
+/// or «включи клип про кота на телевизоре». Returns None for a plain
+/// «включи ютуб», which should just open the app.
+fn youtube_search_query(lower: &str) -> Option<String> {
+    let markers = [
+        "найди на ютубе",
+        "поищи на ютубе",
+        "поиск на ютубе",
+        "покажи на ютубе",
+        "найди в ютубе",
+        "поищи в ютубе",
+        "поиск в ютубе",
+        "покажи в ютубе",
+        "найди на youtube",
+        "поищи на youtube",
+        "поиск на youtube",
+        "покажи на youtube",
+        "включи клип",
+        "включи видео",
+        "включи ролик",
+        "включи песню",
+        "поставь клип",
+        "найди клип",
+        "найди видео",
+        "найди",
+        "поищи",
+        "поиск",
+        "покажи",
+    ];
+    for marker in markers {
+        if let Some(index) = lower.find(marker) {
+            let rest = &lower[index + marker.len()..];
+            let query = clean_search_query(rest);
+            if !query.is_empty() {
+                return Some(query);
+            }
+        }
+    }
+    None
+}
+
+fn clean_search_query(rest: &str) -> String {
+    let punctuation = |c: char| {
+        c.is_whitespace() || matches!(c, ',' | '.' | '!' | '?' | ':' | ';' | '"' | '«' | '»')
+    };
+    let mut text = rest.trim_matches(punctuation).to_owned();
+    for tail in [
+        "на телевизоре",
+        "по телевизору",
+        "на ютубе",
+        "в ютубе",
+        "на youtube",
+        "в youtube",
+        "в гостиной",
+        "в детской",
+        "в спальне",
+    ] {
+        if let Some(index) = text.rfind(tail) {
+            text.truncate(index);
+            text = text.trim_end_matches(punctuation).to_owned();
+        }
+    }
+    text.trim().to_owned()
 }
 
 fn volume_level(lower: &str) -> Option<u32> {
@@ -1050,6 +1124,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_youtube_search_queries() {
+        assert_eq!(
+            parse_tv_intent("найди на ютубе котиков"),
+            Some(TvIntent::Search("котиков".to_owned()))
+        );
+        assert_eq!(
+            parse_tv_intent("покажи на ютубе котиков в гостиной"),
+            Some(TvIntent::Search("котиков".to_owned()))
+        );
+        assert_eq!(
+            parse_tv_intent("включи клип про кота на телевизоре"),
+            Some(TvIntent::Search("про кота".to_owned()))
+        );
+        assert_eq!(
+            parse_tv_intent("включи ютуб"),
+            Some(TvIntent::App("youtube".to_owned()))
+        );
+    }
+
+    #[test]
     fn light_commands_are_not_tv_intents() {
         assert!(parse_tv_intent("включи свет в детской").is_none());
         assert!(!mentions_tv("включи свет в детской"));
@@ -1061,6 +1155,7 @@ mod tests {
         assert!(mentions_non_light_device("включи телевизор в детской"));
         assert!(mentions_non_light_device("включи вытяжку в санузле"));
         assert!(mentions_non_light_device("открой замок"));
+        assert!(mentions_non_light_device("включи ютуб в детской"));
         assert!(!mentions_non_light_device("включи свет в детской"));
         assert!(!mentions_non_light_device("выключи кухню"));
     }

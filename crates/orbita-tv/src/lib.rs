@@ -106,6 +106,14 @@ pub struct AppParams {
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
+pub struct SearchParams {
+    /// Телевизор: комната, id или алиас.
+    pub device: Option<String>,
+    /// Что искать на YouTube: «котики», «клип про кота», «как починить кран».
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
 pub struct InputParams {
     /// Телевизор: комната, id или алиас.
     pub device: Option<String>,
@@ -309,6 +317,37 @@ impl TvServer {
         }
     }
 
+    #[tool(
+        description = "Открыть результаты поиска YouTube на телевизоре. Возвращает экран поиска, видео само не запускается — пользователь выбирает пультом. Для конкретного клипа используй tv_app с watch-ссылкой."
+    )]
+    pub async fn search(&self, Parameters(params): Parameters<SearchParams>) -> String {
+        let device = match self.device(params.device.as_deref()) {
+            Ok(device) => device,
+            Err(error) => return format!("Ошибка: {error}"),
+        };
+        let lock = match self.lock(device) {
+            Ok(lock) => lock,
+            Err(error) => return format!("Ошибка: {error}"),
+        };
+        let _guard = lock.lock().await;
+        let query = params.query.trim();
+        if query.is_empty() {
+            return "Ошибка: пустой поисковый запрос".to_owned();
+        }
+        let link = format!(
+            "https://www.youtube.com/results?search_query={}",
+            percent_encode(query)
+        );
+        let mut client = match TvLink::open(device).await {
+            Ok(link) => link,
+            Err(error) => return format!("{}: не удалось подключиться ({error})", device.name()),
+        };
+        match client.send_app_link(&link).await {
+            Ok(()) => format!("{}: открываю поиск на YouTube: {query}", device.name()),
+            Err(error) => format!("{}: ошибка поиска ({error})", device.name()),
+        }
+    }
+
     #[tool(description = "Переключить вход телевизора: hdmi1, hdmi2, hdmi3, hdmi4 или tv.")]
     pub async fn input(&self, Parameters(params): Parameters<InputParams>) -> String {
         let Some(code) = proto::key_code(&params.input) else {
@@ -332,6 +371,21 @@ impl TvServer {
             Err(error) => format!("{}: ошибка входа ({error})", device.name()),
         }
     }
+}
+
+/// Percent-encode a YouTube query; spaces become %20, UTF-8 bytes are escaped.
+fn percent_encode(value: &str) -> String {
+    let mut out = String::new();
+    for byte in value.as_bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(*byte as char);
+            }
+            b' ' => out.push_str("%20"),
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
 }
 
 fn app_link(app: &str) -> String {
@@ -405,6 +459,15 @@ mod tests {
         assert_eq!(app_link("YouTube"), "https://www.youtube.com");
         assert_eq!(app_link("кинопоиск"), "https://www.kinopoisk.ru");
         assert_eq!(app_link("https://example.com"), "https://example.com");
+    }
+
+    #[test]
+    fn percent_encodes_youtube_queries() {
+        assert_eq!(
+            percent_encode("котики"),
+            "%D0%BA%D0%BE%D1%82%D0%B8%D0%BA%D0%B8"
+        );
+        assert_eq!(percent_encode("cat clips"), "cat%20clips");
     }
 
     #[test]
