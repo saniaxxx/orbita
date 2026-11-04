@@ -90,6 +90,7 @@ pub struct VoskConfig {
     pub arena: Option<bool>,
     /// Log per-stage timings for every request; `VOSK_TIMINGS`.
     pub timings: bool,
+
     pub threads: usize,
     /// Pause between pieces of long input, seconds.
     pub silence: f32,

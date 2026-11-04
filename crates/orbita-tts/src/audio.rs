@@ -141,17 +141,25 @@ impl AudioEncoder for FfmpegEncoder {
         let mut child = command
             .spawn()
             .map_err(|error| format!("failed to start ffmpeg: {error}"))?;
-        child
+        // Feed stdin from another thread: a long WAV fills ffmpeg's stdout pipe
+        // while we are still writing, and writing first deadlocks.
+        let mut stdin = child
             .stdin
-            .as_mut()
-            .ok_or_else(|| "ffmpeg stdin is unavailable".to_owned())?
-            .write_all(wav)
-            .map_err(|error| format!("failed to write to ffmpeg: {error}"))?;
-        drop(child.stdin.take());
+            .take()
+            .ok_or_else(|| "ffmpeg stdin is unavailable".to_owned())?;
+        let input = wav.to_vec();
+        let writer = std::thread::spawn(move || {
+            stdin
+                .write_all(&input)
+                .map_err(|error| format!("failed to write to ffmpeg: {error}"))
+        });
 
         let output = child
             .wait_with_output()
             .map_err(|error| format!("failed to wait for ffmpeg: {error}"))?;
+        writer
+            .join()
+            .map_err(|_| "ffmpeg stdin writer panicked".to_owned())??;
         if !output.status.success() {
             return Err(format!(
                 "ffmpeg exited with {}: {}",
