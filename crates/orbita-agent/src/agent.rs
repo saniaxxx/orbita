@@ -101,10 +101,7 @@ impl Agent {
 
         if let Some(home) = self.home.as_deref() {
             let lower = text.to_lowercase();
-            if lower.contains("какой свет")
-                || lower.contains("что включено")
-                || lower.contains("статус света")
-            {
+            if asks_about_lights(&lower) {
                 return Ok(Outcome::text(home.status_line()));
             }
             if let Some(command) = home.parse(text) {
@@ -386,6 +383,25 @@ fn strip_wake_word(text: &str) -> &str {
         }
     }
     trimmed
+}
+
+/// Does the utterance ask for the current light state?
+///
+/// ASR often turns «какой свет включён?» into the statement «Свет включён.»
+/// (observed on the stand), so a bare state verb without a command verb also
+/// counts as a status question.
+fn asks_about_lights(lower: &str) -> bool {
+    if lower.contains("какой свет")
+        || lower.contains("какие свет")
+        || lower.contains("что включено")
+        || lower.contains("статус света")
+    {
+        return true;
+    }
+    lower.contains("свет")
+        && ["включён", "включен", "выключен", "выключён", "горит"]
+            .iter()
+            .any(|word| lower.contains(word))
 }
 
 /// Whether the channel offered the function this action needs.
@@ -825,6 +841,31 @@ mod tests {
                 arguments: json!({"durationSeconds": 60}),
             }]
         );
+    }
+
+    #[test]
+    fn recognizes_light_status_questions_and_statements() {
+        for text in [
+            "какой свет включен",
+            "какие светильники включены",
+            "что включено",
+            "статус света",
+            "свет включён",
+            "свет выключен",
+            "свет горит",
+        ] {
+            assert!(asks_about_lights(text), "{text}");
+        }
+        for text in [
+            "включи свет в спальне",
+            "выключи свет",
+            "зажги свет на кухне",
+            "погаси свет",
+            "яркость 40 в спальне",
+            "какой сегодня день",
+        ] {
+            assert!(!asks_about_lights(text), "{text}");
+        }
     }
 
     #[test]
