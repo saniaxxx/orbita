@@ -177,7 +177,28 @@ fn is_supported(c: char) -> bool {
 }
 
 /// Make arbitrary text safe for the Vosk pipeline (see module docs).
+const ABBREVIATIONS: [(&str, &str); 8] = [
+    ("мм рт. ст.", "миллиметров ртутного столба"),
+    ("м/с", "метров в секунду"),
+    ("км/ч", "километров в час"),
+    ("гр.", "градусов"),
+    ("т.е.", "то есть"),
+    ("т.к.", "так как"),
+    ("др.", "другие"),
+    ("т.д.", "так далее"),
+];
+
+/// Expand spoken-unfriendly symbols and abbreviations before the pipeline.
+fn expand_spoken(text: &str) -> String {
+    let mut text = text.to_owned();
+    for (from, to) in ABBREVIATIONS {
+        text = text.replace(from, to);
+    }
+    text.replace(['/', '\\'], " ")
+}
+
 pub fn normalize(text: &str) -> String {
+    let text = expand_spoken(text);
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     let mut index = 0;
@@ -217,6 +238,7 @@ pub fn normalize(text: &str) -> String {
         }
         match c {
             '—' | '–' | '‑' => out.push('-'),
+            '−' => push_word(&mut out, "минус", chars.get(index + 1).copied()),
             '…' => out.push_str("..."),
             '«' | '»' | '„' | '“' | '”' => out.push('"'),
             '%' => push_word(&mut out, "процентов", chars.get(index + 1).copied()),
@@ -346,6 +368,14 @@ mod tests {
         assert_eq!(normalize("код 007"), "код ноль ноль семь");
         assert_eq!(normalize("в 7ч"), "в семь ч");
         assert_eq!(normalize("a*b"), "а б");
+        assert_eq!(
+            normalize("Ветер 2 м/с, −2°"),
+            "Ветер два метров в секунду, минус два градусов"
+        );
+        assert_eq!(
+            normalize("751 мм рт. ст."),
+            "семьсот пятьдесят один миллиметров ртутного столба"
+        );
     }
 
     #[test]

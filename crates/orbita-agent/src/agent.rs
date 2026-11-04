@@ -135,15 +135,15 @@ impl Agent {
                     )));
                     let raw = self.llm.complete(&messages).await?;
                     let (reply, actions) = parse_reply(&raw, context, None);
-                    let reply = reply.trim();
+                    let reply = strip_source_note(reply.trim());
                     if reply.is_empty() {
                         return Err("LLM returned an empty answer after search".to_owned());
                     }
                     self.store.append_message(&history_id, "user", text)?;
-                    self.store.append_message(&history_id, "assistant", reply)?;
+                    self.store.append_message(&history_id, "assistant", &reply)?;
                     self.store.audit("dialogue.search", &format!("session={history_id}"))?;
                     return Ok(Outcome {
-                        text: reply.to_owned(),
+                        text: reply,
                         actions,
                     });
                 }
@@ -223,23 +223,20 @@ impl Agent {
             return Err("LLM kept calling tools without a final answer".to_owned());
         }
 
-        let reply = reply.trim();
+        let reply = strip_source_note(reply.trim());
         if reply.is_empty() && actions.is_empty() {
             return Err("LLM returned an empty answer".to_owned());
         }
 
         self.store.append_message(&history_id, "user", text)?;
         if !reply.is_empty() {
-            self.store.append_message(&history_id, "assistant", reply)?;
+            self.store.append_message(&history_id, "assistant", &reply)?;
         }
         self.store.audit(
             "dialogue",
             &format!("session={history_id} actions={}", actions.len()),
         )?;
-        Ok(Outcome {
-            text: reply.to_owned(),
-            actions,
-        })
+        Ok(Outcome { text: reply, actions })
     }
 
     fn system_prompt_with_time(&self, now: DateTime<Utc>, context: &SessionContext) -> String {
@@ -288,6 +285,16 @@ fn is_search_intent(text: &str) -> bool {
 
 /// Drop the wake word the ASR keeps at the start ("Алиса, ..."): the station
 /// address is channel noise, and the model behaves better without it.
+/// Drop a trailing "Источник: ..." note: it is not meant to be spoken.
+fn strip_source_note(text: &str) -> String {
+    use std::sync::OnceLock;
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    let regex = RE.get_or_init(|| {
+        regex::Regex::new(r"(?i)\s*источник[^.!?]*[.!?]?\s*$").expect("source note regex")
+    });
+    regex.replace(text, "").trim().to_owned()
+}
+
 fn strip_wake_word(text: &str) -> &str {
     let trimmed = text.trim();
     let lower = trimmed.to_lowercase();
