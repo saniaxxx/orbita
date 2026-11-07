@@ -54,20 +54,16 @@ deploy/
   station/       hosts станции с доменами Яндекса
   llama-json.gbnf  грамматика JSON для llama.cpp
 docs/
-  state.md              текущее состояние стенда и что делать дальше
-  spec.md               спецификация (SDD, замеры в §11)
-  features.md           бэклог фич и идей
-  agent-deploy.md       задание агенту-развёртывателю
-  agent-verification.md туториал для агента-проверяющего
-  agent.md              голосовой агент: директивы станции, запуск, замена processor
-  dashboard.md          запуск и API веб-панели
-  glagol.md             спайк локального Glagol для музыки
+  spec.md               целевая архитектура и требования
+  plan.md               план перехода на OpenClaw
+  state.md              короткий снимок текущего стенда
+  README.md             индекс документации
 ```
 
 Сборка и запуск:
 
 ```sh
-cargo build --release -p orbita-processor -p orbita-mcp-search -p orbita-dashboard -p orbita-cli
+cargo build --release -p orbita-agent -p orbita-tv -p orbita-mcp-search -p orbita-dashboard -p orbita-cli
 cargo test --workspace
 ```
 
@@ -76,7 +72,7 @@ cargo test --workspace
 ## Правила работы
 
 - Разработка идёт по SDD: изменение поведения и достигнутый результат фиксируются в
-  `docs/spec.md` (цифры — в разделе «Замеры»), в том же коммите.
+  `docs/spec.md`, `docs/plan.md` и `docs/state.md`, в том же коммите.
 - Долгие операции (установка пакетов, перезапуски, цепочки `ssh` → `pct exec`) запускаются
   фоном, а не блокирующей командой: длинная цепочка выглядит как зависание и её прерывают.
 
