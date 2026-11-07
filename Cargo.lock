@@ -1609,6 +1609,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbita-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "orbita-core"
 version = "0.1.0"
 dependencies = [
@@ -1662,6 +1671,21 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "orbita-home-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "orbita-core",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]

@@ -50,7 +50,16 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - Нет единого контракта `InboundEvent/Reply` в коде.
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
 
-## 5. Ближайшие шаги
+## 5. Offline-заготовки
+
+- `crates/orbita-contracts` — v0 контракты `InboundEvent/Reply/OutboundEvent`,
+  capabilities, shadow; 4 unit-теста.
+- `crates/orbita-home-mcp` — MCP-фасад с fake-backend: devices/state/command/
+  scenes/events/health, policy и idempotency; 4 unit-теста.
+- Station adapter и streaming пока не реализованы; им нужен контракт v0
+  после POC и симулятор.
+
+## 6. Ближайшие шаги
 
 1. Фаза 0: контракты, identity, baseline, ADR LLM/adapter.
 2. LLM serving + общие STT/TTS-шлюзы.

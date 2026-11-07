@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/orbita-core",
+    "crates/orbita-contracts",
     "crates/orbita-mcp-search",
     "crates/orbita-tts",
     "crates/orbita-processor",
@@ -12,6 +13,7 @@ members = [
     "crates/orbita-cli",
     "crates/orbita-glagol",
     "crates/orbita-home",
+    "crates/orbita-home-mcp",
     "crates/orbita-agent",
     "crates/orbita-tv",
 ]
