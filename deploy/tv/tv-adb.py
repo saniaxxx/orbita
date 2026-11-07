@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -28,6 +29,8 @@ import xml.etree.ElementTree as ET
 
 ADB = os.environ.get("ADB", "adb")
 SERIAL = os.environ.get("TV_ADB", "192.168.250.111:5555")
+TV_HOST = SERIAL.rsplit(":", 1)[0]
+TV_MAC = os.environ.get("TV_MAC", "")
 VK_PACKAGE = "com.vk.tv"
 VK_ACTIVITY = f"{VK_PACKAGE}/.presentation.base.TvMainActivity"
 
@@ -69,6 +72,48 @@ def connect() -> None:
     if "connected" not in text.lower() and "already" not in text.lower():
         raise RuntimeError(f"adb connect failed: {text}")
     adb("wait-for-device")
+
+
+def wake_on_lan() -> bool:
+    """Send a Wake-on-LAN magic packet, if the TV MAC is known."""
+    if not TV_MAC:
+        return False
+    try:
+        mac = bytes.fromhex(TV_MAC.replace(":", "").replace("-", ""))
+    except ValueError:
+        return False
+    packet = b"\xff" * 6 + mac * 16
+    sent = False
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    for target in ("255.255.255.255", TV_HOST):
+        for port in (7, 9):
+            try:
+                sock.sendto(packet, (target, port))
+                sent = True
+            except OSError:
+                pass
+    sock.close()
+    return sent
+
+
+def ensure_on() -> None:
+    """Wake a sleeping/off TV before a command that needs its UI."""
+    current = power_state()
+    if current is True:
+        return
+    if current is None:
+        if wake_on_lan():
+            for _ in range(30):
+                time.sleep(1)
+                result = run([ADB, "connect", SERIAL])
+                if "connected" in (result.stdout + result.stderr).lower() and power_state() is not None:
+                    break
+    if power_state() is False:
+        adb("shell", "input", "keyevent", "224")
+        time.sleep(2.0)
+    if power_state() is not True:
+        raise RuntimeError("TV не включился: ADB недоступен и Wake-on-LAN не помог")
 
 
 def dump_ui() -> ET.Element:
@@ -187,6 +232,8 @@ def vk_play(query: str) -> None:
     query = query.strip()
     if not query:
         raise RuntimeError("пустой поисковый запрос")
+    ensure_on()
+    connect()
     adb("shell", "am", "force-stop", VK_PACKAGE)
     adb("shell", "am", "start", "-n", VK_ACTIVITY)
     time.sleep(3.0)
@@ -219,16 +266,35 @@ def power_state() -> bool | None:
 
 def set_power(on: bool) -> None:
     current = power_state()
-    if current is None:
-        raise RuntimeError("не удалось определить состояние экрана")
-    if current == on:
-        print(f"TV уже {'включён' if on else 'выключен'}")
+    if on:
+        if current is True:
+            print("TV уже включён")
+            return
+        if current is None:
+            wake_on_lan()
+            for _ in range(30):
+                time.sleep(1)
+                result = run([ADB, "connect", SERIAL])
+                if "connected" in (result.stdout + result.stderr).lower() and power_state() is not None:
+                    break
+        if power_state() is False:
+            adb("shell", "input", "keyevent", "224")
+            time.sleep(2.0)
+        after = power_state()
+        if after is not True:
+            raise RuntimeError("TV не включился: ADB недоступен и Wake-on-LAN не помог")
+        print("TV: включён")
         return
-    # 224 = KEYCODE_WAKEUP, 223 = KEYCODE_SLEEP. Never use the POWER toggle.
-    adb("shell", "input", "keyevent", "224" if on else "223")
+    if current is False:
+        print("TV уже выключен")
+        return
+    if current is None:
+        raise RuntimeError("не удалось подключиться к TV по ADB")
+    # 223 = KEYCODE_SLEEP. Never use the POWER toggle.
+    adb("shell", "input", "keyevent", "223")
     time.sleep(2.0)
     after = power_state()
-    print(f"TV: {'включён' if after else 'выключен'}")
+    print(f"TV: {'выключен' if after is not True else 'не удалось выключить'}")
 
 
 def volume(action: str, level: int | None) -> None:
@@ -282,7 +348,16 @@ def main() -> None:
     vk.add_argument("query")
     args = parser.parse_args()
 
-    connect()
+    if args.command == "power" and args.action == "on":
+        set_power(True)
+        return
+    try:
+        connect()
+    except RuntimeError:
+        if args.command == "state":
+            print("экран=выключен_или_недоступен громкость=? vk_playing=False")
+            return
+        raise
     if args.command == "state":
         state()
     elif args.command == "power":

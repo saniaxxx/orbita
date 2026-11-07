@@ -449,7 +449,12 @@ fn mentions_tv(lower: &str) -> bool {
 /// детской» once toggled the children's room light. Unknown devices fall back
 /// to the LLM, which is safer than a blind light command.
 fn mentions_non_light_device(lower: &str) -> bool {
-    if mentions_tv(lower) || lower.contains("ютуб") || lower.contains("youtube") {
+    if mentions_tv(lower)
+        || lower.contains("ютуб")
+        || lower.contains("youtube")
+        || lower.contains("мультик")
+        || lower.contains("мультфильм")
+    {
         return true;
     }
     lower.split(|c: char| !c.is_alphanumeric()).any(|word| {
@@ -477,6 +482,7 @@ enum TvIntent {
     SetVolume(u32),
     App(String),
     Search(String),
+    Cartoon { query: String, device: String },
     Input(String),
     State,
 }
@@ -499,6 +505,10 @@ impl TvIntent {
                 "tv_search",
                 serde_json::json!({"device": device, "query": query}),
             ),
+            Self::Cartoon { query, device } => (
+                "tv_vk_play",
+                serde_json::json!({"device": device, "query": query}),
+            ),
             Self::Input(input) => (
                 "tv_input",
                 serde_json::json!({"device": device, "input": input}),
@@ -511,6 +521,9 @@ impl TvIntent {
 /// Parse a TV command without the LLM. The whole utterance is passed as the
 /// device reference, so the TV server can pick the room itself.
 fn parse_tv_intent(lower: &str) -> Option<TvIntent> {
+    if let Some(cartoon) = parse_cartoon_intent(lower) {
+        return Some(cartoon);
+    }
     let has_youtube = lower.contains("ютуб") || lower.contains("youtube");
     if !mentions_tv(lower) && !has_youtube {
         return None;
@@ -571,6 +584,47 @@ fn parse_tv_intent(lower: &str) -> Option<TvIntent> {
         return Some(TvIntent::State);
     }
     None
+}
+
+/// «Включи мультик Шериф Лабрадор»: VK search-and-play. Cartoons default to
+/// the children's room TV, as requested; an explicit room still wins.
+fn parse_cartoon_intent(lower: &str) -> Option<TvIntent> {
+    let marker = ["мультик", "мультфильм"]
+        .iter()
+        .filter_map(|word| lower.find(word).map(|index| (index, word.len())))
+        .min_by_key(|(index, _)| *index)?;
+    let (index, len) = marker;
+    let device = if lower.contains("в гостиной") || lower.contains("в гостиную") {
+        "гостиная"
+    } else {
+        "детская"
+    };
+    let after = clean_search_query(&lower[index + len..]);
+    let before = clean_search_query(&lower[..index]);
+    let mut query = if after.is_empty() { before } else { after };
+    if let Some(stripped) = query.strip_prefix("про ") {
+        query = stripped.trim().to_owned();
+    }
+    for prefix in [
+        "включи ",
+        "поставь ",
+        "покажи ",
+        "найди ",
+        "запусти ",
+        "включить ",
+    ] {
+        if let Some(stripped) = query.strip_prefix(prefix) {
+            query = stripped.trim().to_owned();
+            break;
+        }
+    }
+    if query.is_empty() {
+        return None;
+    }
+    Some(TvIntent::Cartoon {
+        query,
+        device: device.to_owned(),
+    })
 }
 
 /// Extract a YouTube search query from phrases like «найди на ютубе котиков»
@@ -1121,6 +1175,32 @@ mod tests {
             parse_tv_intent("переключи телевизор на hdmi2"),
             Some(TvIntent::Input("hdmi2".to_owned()))
         );
+    }
+
+    #[test]
+    fn parses_cartoon_requests_for_the_childrens_tv() {
+        assert_eq!(
+            parse_tv_intent("включи мультик шериф лабрадор"),
+            Some(TvIntent::Cartoon {
+                query: "шериф лабрадор".to_owned(),
+                device: "детская".to_owned(),
+            })
+        );
+        assert_eq!(
+            parse_tv_intent("включи шериф лабрадор мультик"),
+            Some(TvIntent::Cartoon {
+                query: "шериф лабрадор".to_owned(),
+                device: "детская".to_owned(),
+            })
+        );
+        assert_eq!(
+            parse_tv_intent("включи мультик синий трактор в гостиной"),
+            Some(TvIntent::Cartoon {
+                query: "синий трактор".to_owned(),
+                device: "гостиная".to_owned(),
+            })
+        );
+        assert!(parse_tv_intent("включи свет в детской").is_none());
     }
 
     #[test]

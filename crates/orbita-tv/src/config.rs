@@ -30,6 +30,9 @@ pub struct TvDevice {
     pub enabled: bool,
     #[serde(default = "default_api_port")]
     pub api_port: u16,
+    /// ADB TCP port for `protocol: "adb"`.
+    #[serde(default = "default_adb_port")]
+    pub adb_port: u16,
     /// Broadcast address for Wake-on-LAN; defaults to 255.255.255.255.
     #[serde(default)]
     pub broadcast: Option<String>,
@@ -45,6 +48,10 @@ fn default_true() -> bool {
 
 fn default_api_port() -> u16 {
     6466
+}
+
+fn default_adb_port() -> u16 {
+    5555
 }
 
 impl TvConfig {
@@ -163,6 +170,10 @@ impl TvDevice {
         self.protocol == "remote_v2"
     }
 
+    pub fn is_adb(&self) -> bool {
+        self.protocol == "adb"
+    }
+
     /// Match a spoken reference: exact id/room/alias or a Russian case form.
     fn matches(&self, query: &str) -> bool {
         if self.id.to_lowercase() == query {
@@ -242,6 +253,7 @@ mod tests {
                     protocol: "remote_v2".to_owned(),
                     enabled: true,
                     api_port: 6466,
+                    adb_port: 5555,
                     broadcast: None,
                 },
                 TvDevice {
@@ -255,6 +267,7 @@ mod tests {
                     protocol: "cast".to_owned(),
                     enabled: false,
                     api_port: 6466,
+                    adb_port: 5555,
                     broadcast: None,
                 },
             ],

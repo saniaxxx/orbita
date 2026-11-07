@@ -23,7 +23,7 @@ use rmcp::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use tokio::sync::Mutex;
+use tokio::{process::Command, sync::Mutex};
 
 use crate::config::{TvConfig, TvDevice};
 use crate::protocol::TvLink;
@@ -61,6 +61,33 @@ impl TvServer {
             .get(&device.id)
             .cloned()
             .ok_or_else(|| format!("нет блокировки для {}", device.id))
+    }
+
+    /// Run the deterministic ADB helper (`deploy/tv/tv-adb.py`) for a TV that
+    /// has no Remote v2/Cast control. The helper owns the ADB-specific UI
+    /// logic; this server only exposes it as MCP tools.
+    async fn run_adb(&self, device: &TvDevice, args: &[&str]) -> Result<String, String> {
+        let script =
+            std::env::var("TV_ADB_SCRIPT").unwrap_or_else(|_| "/opt/orbita/bin/tv-adb.py".into());
+        let adb = std::env::var("TV_ADB_BIN").unwrap_or_else(|_| "adb".into());
+        let serial = format!("{}:{}", device.host, device.adb_port);
+        let mut command = Command::new(script);
+        command.env("TV_ADB", serial).env("ADB", adb).args(args);
+        if let Some(mac) = &device.mac {
+            command.env("TV_MAC", mac);
+        }
+        let output = command
+            .output()
+            .await
+            .map_err(|error| format!("ADB helper {}: {error}", device.id))?;
+        if !output.status.success() {
+            return Err(format!(
+                "ADB helper {}: {}",
+                device.id,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }
 }
 
@@ -158,6 +185,12 @@ impl TvServer {
             Err(error) => return format!("Ошибка: {error}"),
         };
         let _guard = lock.lock().await;
+        if device.is_adb() {
+            return match self.run_adb(device, &["state"]).await {
+                Ok(text) => format!("{}: {text}", device.name()),
+                Err(error) => format!("{}: {error}", device.name()),
+            };
+        }
         match TvLink::open(device).await {
             Ok(mut link) => {
                 let _ = link.drain_for(Duration::from_millis(700)).await;
@@ -184,6 +217,13 @@ impl TvServer {
             Err(error) => return format!("Ошибка: {error}"),
         };
         let _guard = lock.lock().await;
+        if device.is_adb() {
+            let action = if params.on { "on" } else { "off" };
+            return match self.run_adb(device, &["power", action]).await {
+                Ok(text) => format!("{}: {text}", device.name()),
+                Err(error) => format!("{}: {error}", device.name()),
+            };
+        }
         if !device.is_remote_v2() {
             return format!(
                 "{}: протокол {} пока не поддерживает включение/выключение",
@@ -235,6 +275,13 @@ impl TvServer {
             Err(error) => return format!("Ошибка: {error}"),
         };
         let _guard = lock.lock().await;
+        if device.is_adb() {
+            let key = params.key.to_lowercase();
+            return match self.run_adb(device, &["key", &key]).await {
+                Ok(text) => format!("{}: {text}", device.name()),
+                Err(error) => format!("{}: {error}", device.name()),
+            };
+        }
         let mut link = match TvLink::open(device).await {
             Ok(link) => link,
             Err(error) => return format!("{}: не удалось подключиться ({error})", device.name()),
@@ -258,6 +305,27 @@ impl TvServer {
             Err(error) => return format!("Ошибка: {error}"),
         };
         let _guard = lock.lock().await;
+        if device.is_adb() {
+            let action = params.action.to_lowercase();
+            if action == "mute" || action == "unmute" {
+                return format!("{}: mute/unmute для ADB пока не поддержан", device.name());
+            }
+            let result = match action.as_str() {
+                "set" => match params.level {
+                    Some(level) => {
+                        let level = level.to_string();
+                        self.run_adb(device, &["volume", "set", &level]).await
+                    }
+                    None => Err("для action=set нужен level".to_owned()),
+                },
+                "up" | "down" => self.run_adb(device, &["volume", &action]).await,
+                _ => Err(format!("неизвестное действие громкости {}", params.action)),
+            };
+            return match result {
+                Ok(text) => format!("{}: {text}", device.name()),
+                Err(error) => format!("{}: ошибка громкости ({error})", device.name()),
+            };
+        }
         let mut link = match TvLink::open(device).await {
             Ok(link) => link,
             Err(error) => return format!("{}: не удалось подключиться ({error})", device.name()),
@@ -345,6 +413,35 @@ impl TvServer {
         match client.send_app_link(&link).await {
             Ok(()) => format!("{}: открываю поиск на YouTube: {query}", device.name()),
             Err(error) => format!("{}: ошибка поиска ({error})", device.name()),
+        }
+    }
+
+    #[tool(
+        description = "Найти видео в VK и сразу включить первый результат. Для Sber TV с ADB; query — название мультика или видео."
+    )]
+    pub async fn vk_play(&self, Parameters(params): Parameters<SearchParams>) -> String {
+        let device = match self.device(params.device.as_deref()) {
+            Ok(device) => device,
+            Err(error) => return format!("Ошибка: {error}"),
+        };
+        let lock = match self.lock(device) {
+            Ok(lock) => lock,
+            Err(error) => return format!("Ошибка: {error}"),
+        };
+        let _guard = lock.lock().await;
+        if !device.is_adb() {
+            return format!(
+                "{}: VK-поиск доступен только для protocol=adb",
+                device.name()
+            );
+        }
+        let query = params.query.trim();
+        if query.is_empty() {
+            return "Ошибка: пустой поисковый запрос".to_owned();
+        }
+        match self.run_adb(device, &["vk-play", query]).await {
+            Ok(text) => format!("{}: {text}", device.name()),
+            Err(error) => format!("{}: ошибка VK ({error})", device.name()),
         }
     }
 
