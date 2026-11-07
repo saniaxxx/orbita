@@ -52,13 +52,14 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 
 ## 5. Ближайшие шаги
 
-1. Фаза 0: контракты, identity, ADR OpenClaw vs Hermes.
-2. OpenClaw/Hermes lab: Telegram + MCP search/TV read-only.
-3. Station adapter на `orbita-station-sim`.
-4. Streaming TTS и multi-stream quasar.
-5. home-MCP + wb-rules events.
-6. Wyoming.
-7. Shadow/canary, затем миграция.
+1. Фаза 0: контракты, identity, baseline, ADR LLM/adapter.
+2. LLM serving + общие STT/TTS-шлюзы.
+3. POC OpenClaw/Hermes с go/no-go по device-actions и streaming.
+4. home-MCP + команды/ack в wb-rules.
+5. Station adapter на `orbita-station-sim`.
+6. Streaming TTS — отдельный gate.
+7. События/outbound, затем Wyoming.
+8. Shadow/canary и миграция.
 
 Полный план — `docs/plan.md`.
 
