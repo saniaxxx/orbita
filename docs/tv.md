@@ -86,3 +86,43 @@ systemctl daemon-reload && systemctl enable --now orbita-tv
 
 В юните агента добавить `tv#http://127.0.0.1:8898/mcp` в
 `AGENT_MCP_SERVER_URLS` и перезапустить `orbita-agent`.
+
+## Sber TV через ADB (детерминированный скрипт)
+
+Для Sber/SaluteTV, где Remote v2 и Cast недоступны, есть отдельный скрипт
+`deploy/tv/tv-adb.py`. Это не MCP-сервер, а операторский инструмент: явные
+команды, без LLM и без угадывания.
+
+Нужен `adb` из Android platform-tools. На Mac:
+
+```sh
+curl -LO https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
+unzip -q platform-tools-latest-darwin.zip -d /tmp
+export ADB=/tmp/platform-tools/adb
+export TV_ADB=192.168.250.111:5555
+```
+
+Сначала на телевизоре включить «Отладку по USB» и подтвердить запрос
+«Разрешить отладку» с отпечатком компьютера. После этого:
+
+```sh
+./deploy/tv/tv-adb.py state
+./deploy/tv/tv-adb.py power on
+./deploy/tv/tv-adb.py power off
+./deploy/tv/tv-adb.py volume up
+./deploy/tv/tv-adb.py volume set 20
+./deploy/tv/tv-adb.py key home
+./deploy/tv/tv-adb.py vk-play "Шериф Лабрадор"
+```
+
+`vk-play` делает детерминированную последовательность: запускает `com.vk.tv`,
+открывает поиск, очищает поле, набирает запрос по экранной клавиатуре
+(координаты клавиш берутся из `uiautomator dump`, а не жёстко), нажимает
+«Поиск», выбирает первую видеокарточку, подтверждает `DPAD_CENTER` и проверяет
+`PlaybackState state=3`.
+
+Ограничения: ADB — полный shell на телевизоре; держать `5555` только в
+доверенной сети и выключать отладку после работ. Скрипт зависит от UI
+VK-приложения; при обновлении VK тексты/раскладка могут измениться — тогда
+нужно обновить селекторы. `tv-adb.py` не входит в `orbita-tv` и не даёт
+агенту автоматического доступа: это отдельный детерминированный скрипт.
