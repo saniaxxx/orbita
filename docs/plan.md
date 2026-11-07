@@ -13,7 +13,9 @@
 - Старый `orbita-agent` остаётся fallback до приёмки; планировщик и напоминания
   в каждый момент принадлежат только одному ядру.
 - Каждая фаза заканчивается тестами, baseline-замером и rollback-командой.
-- Никаких изменений на рабочем стенде до прохождения gate фаз 2 и 5.
+- Изменения на рабочем стенде — только с rollback, в окно простоя и после
+  соответствующего gate. Фазы 1 и 3 могут менять llama/wb-rules, но не
+  одновременно с пилотом станции.
 - Оценки — рабочие дни, без буфера на ручные стендовые команды.
 
 ## Фаза 0. Контракты, baseline, ADR (3–4 дня)
@@ -35,6 +37,11 @@
 
 - LLM: grammar per-request; `-np ≥2` или раздельные endpoint’ы; бюджет KV/VRAM;
   приоритет голоса; замер prefill системного промпта OpenClaw.
+- Legacy `orbita-agent`: добавить grammar/response_format в запрос, проверить
+  поле `grammar` на текущей сборке llama.cpp (D-6: `--json-schema` падал), затем
+  снять глобальную GBNF. Без этого fallback сломается.
+- Приоритет «голос > фон» llama.cpp сам не умеет: нужен явный scheduler/proxy
+  перед LLM; записать компонент и очередь.
 - STT: streaming GigaAM + Wyoming ASR adapter.
 - TTS: Vosk HTTP + Wyoming TTS adapter; Opus 48 кГц и PCM 16 кГц.
 - Очереди/приоритеты GPU: голос > Wyoming > фон.
@@ -50,11 +57,12 @@
 - Отдельный LXC, без секретов станции.
 - OpenClaw Gateway + локальная модель + Telegram.
 - MCP: `search`, `tv` read-only; home — read-only state.
+- Контракт v0; после POC — ревизия.
 - Проверить:
   - block streaming и tool calls;
-  - механизм device-actions (C3);
+  - механизм device-actions (C3) и превращение capabilities в tools на ход;
   - per-request grammar (C1);
-  - outbound/напоминания;
+  - outbound/напоминания и путь `планировщик OpenClaw → station adapter`;
   - tool policy, approvals, рестарт;
   - prompt injection из search.
 - Hermes — тот же набор сценариев.
@@ -78,8 +86,11 @@ home-MCP свет/автоматизации работают.
 
 ## Фаза 4. Station adapter (5–7 дней)
 
-- Выбранная граница (D-22): adapter за `/process` или внутри quasar.
+- Выбранная граница (D-22): adapter за `/process` или внутри quasar; выбрать
+  живой TS-quasar или Rust `orbita-quasar`.
 - `prepare/process`, DUID-сессии, `partialResponse`, `should_listen`.
+- Если adapter за `/process` — проверить, что quasar принимает несколько
+  `partialResponse` и делает пофразовый TTS; это работа входит в фазу 5.
 - Маппинг device-actions в AAPI-директивы только здесь.
 - Тесты на `orbita-station-sim`: приветствие, таймер, громкость, свет, TV,
   ошибка MCP, рестарт.
@@ -108,6 +119,8 @@ quasar на `orbita-agent`.
 - `home_events` + MCP Events (signed webhooks) для критичных.
 - HTTPS callback в LAN: reverse proxy/Tailscale.
 - OutboundEvent: напоминания, объявления, критические уведомления.
+  Ack/retry/TTL, offline-device не блокирует остальные цели.
+- Target resolver: principal/room → конкретное устройство с учётом quiet hours.
 - Критичные события дублируются без LLM.
 - Quiet hours, rate limit, TTL.
 
@@ -126,8 +139,9 @@ quasar на `orbita-agent`.
 
 ## Фаза 8. Shadow, canary, миграция (5–7 дней)
 
-- Shadow: `InboundEvent.shadow=true`; MCP возвращает `simulated`; сравнение
-  tool calls/аргументов, не только текста.
+- Shadow — отдельный инстанс ядра: cron/планировщик/OutboundEvent/запись
+  памяти выключены; MCP — dry-run/read-only; state читается из реального
+  home-MCP. Tee запросов фиксируется ADR.
 - Перенос SQLite-задач/напоминаний; правило владельца планировщика.
 - Canary 1–2 недели на одной станции/комнате.
 - Переключение quasar на адаптер OpenClaw.

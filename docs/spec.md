@@ -97,7 +97,7 @@ InboundEvent {
 
 Reply {
   turn_id,
-  text_blocks: [String],
+  blocks: [TextBlock { seq, text, final }],
   should_listen,
   error,
 }
@@ -105,18 +105,29 @@ Reply {
 OutboundEvent {
   target,               // principal | device | room
   urgency,              // normal | important | critical
-  text,
-  ttl,
+  text, ttl,
+  require_ack,
+  retry_policy,
 }
 ```
 
+- **Контракт v0.** Он фиксируется в фазе 0 и ревизуется после POC фазы 2,
+  когда выбран механизм device-actions.
 - `directives` не входят в Reply. Они живут только в station-адаптере.
 - Действия устройства (`SetVolume`, `SetTimer`, `MediaPlay`) доставляются не
   как `Reply.actions`, а через механизм, который поддерживает выбранное ядро:
   client-side tools, device-MCP или structured output. Это go/no-go POC.
+- Capabilities устройства (карта директив из `prepare`) должны превращаться в
+  набор tool’ов на ход/канал. Проверка этого — критерий POC.
 - `HomeAction` в Reply отсутствует: дом — только MCP-tool.
 - `OutboundEvent` нужен для напоминаний, событий дома и объявлений.
+  Семантика: `target` резолвится в конкретное устройство/комнату с учётом
+  quiet hours; доставка имеет ack/retry/TTL; offline-device не блокирует
+  остальные цели.
 - `should_listen` сохраняет поведение станции после ответа.
+- `blocks` — поток, а не массив готового ответа; `final=true` закрывает ход.
+- Планировщик OpenClaw эмитит `OutboundEvent`; путь до станции — через
+  station-adapter/channel plugin, это отдельный чек-лист POC.
 
 ## 4. Потоковый ответ и TTS
 
@@ -218,8 +229,10 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
 - Детерминированные интенты (громкость, таймер, напоминания, свет, TV) — это
   бизнес-логика. Их место фиксируется D-25: отдельный intent layer перед
   ядром или tools в ядре; прямые MCP-вызовы мимо ядра запрещены.
-- Shadow: `InboundEvent.shadow=true`; MCP-серверы возвращают `simulated`, не
-  выполняя команды; сравниваются tool calls/аргументы, а не только текст.
+- Shadow — отдельный инстанс ядра с отключёнными cron, планировщиком,
+  OutboundEvent и записью в постоянную память. MCP смотрят в dry-run/read-only;
+  state читается из реального home-MCP. Сравниваются tool calls/аргументы, а не
+  только текст. Tee запросов — в quasar или station-адаптере, фиксируется ADR.
 - Два ядра не должны одновременно владеть планировщиком, напоминаниями и push.
 
 ## 9. Требования
@@ -245,7 +258,8 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
 - **NFR-2.** p95 до первого звука — baseline фиксируется в фазе 0; цель ≤2 с
   на коротких ответах, без деградации fast paths.
 - **NFR-3.** Дом работает при падении OpenClaw/MCP.
-- **NFR-4.** Один LLM-endpoint, один STT, один TTS; без дублей на интерфейс.
+- **NFR-4.** Один LLM-сервис (один endpoint или несколько endpoint’ов одного
+  сервиса), один STT, один TTS; без дублей на интерфейс.
 - **NFR-5.** Секреты не в git; сертификаты `0600`.
 - **NFR-6.** OpenClaw pinned version; contract-тесты адаптера в CI.
 
@@ -264,10 +278,15 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
 - **D-21. LLM serving.** Грамматика per-request, ≥2 слота или раздельные
   endpoint’ы, приоритет голоса, замер prefill.
 - **D-22. Граница station adapter.** ADR в фазе 0: adapter за `/process` или
-  внутри quasar; TtsSpeak/Close принадлежат quasar.
+  внутри quasar; TtsSpeak/Close принадлежат quasar. Отдельно выбрать живой
+  TS-quasar или Rust `orbita-quasar`; при варианте «за `/process`» quasar
+  обязан принимать несколько `partialResponse` и делать пофразовый TTS.
 - **D-23. Идентичность и approvals.** household + person; опасные действия
   подтверждаются out-of-band.
-- **D-24. Shadow dry-run.** Побочные эффекты отключены, сравнение tool calls.
+- **D-24. Shadow — отдельный инстанс ядра.** У него отключены cron,
+  планировщик, OutboundEvent и запись в постоянную память; MCP смотрят в
+  dry-run/read-only. Флага в InboundEvent недостаточно: OpenClaw не обязан
+  пробрасывать его в tools/call.
 - **D-25. Deterministic intent layer.** Fast paths — явный слой с аудитом, не
   скрытая логика интерфейса.
 
