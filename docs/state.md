@@ -10,8 +10,9 @@
 mobile и web — интерфейсы к одному ядру. Ядро — OpenClaw (кандидат; Hermes
 сравнивается в POC). LLM вызывает только ядро; STT/TTS — общие сервисы.
 
-Текущий `orbita-agent` — legacy: он всё ещё обслуживает станцию, но целевая
-архитектура его заменяет.
+Станцию обслуживает `orbita-station-adapter` перед OpenClaw. Legacy
+`orbita-agent` остановлен и отключён 08.11.2026 (вместе с `orbita-warmup`),
+откат — `pct exec 101 -- systemctl enable --now orbita-agent orbita-warmup`.
 
 ## 2. Стенд
 
@@ -19,7 +20,7 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 |---|---|---|
 | pve3 | `192.168.250.221` | Proxmox VE |
 | CT 100 `orbita-ai` | `192.168.250.102` | GPU/AI: llama.cpp, GigaAM, Vosk TTS |
-| CT 101 `orbita-hub` | `192.168.250.103` | interfaces/integrations: quasar, orbita-agent, mcp-search, orbita-tv, dashboard, https-proxy, SearXNG |
+| CT 101 `orbita-hub` | `192.168.250.103` | interfaces/integrations: quasar, mcp-search, orbita-tv, orbita-home-mcp, dashboard, https-proxy, SearXNG; orbita-agent остановлен |
 | CT 102 `orbita-brain` | `192.168.250.105` | ядро: OpenClaw 2026.11.1, Node 24, gateway `127.0.0.1:18789` |
 | Станция | `192.168.250.115` | домены Яндекса в `/etc/hosts` → `.103` |
 | Wiren Board | `192.168.250.110` | MQTT, wb-rules |
@@ -32,8 +33,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **STT**: GigaAM на CUDA/CPU; используется quasar.
 - **TTS**: Vosk TTS на CUDA; HTTP и Opus 48 кГц для станции. Уникальная фраза
   ~0,93 с, повтор ~0,2 с.
-- **Станция**: quasar/AAPI, `/process`; `orbita-agent` отвечает, директивы
-  громкости/таймеров работают. Голосовой прогон `deploy/verify/run-directives.sh`
+- **Станция**: quasar/AAPI, `/process` → `orbita-station-adapter` → OpenClaw
+  (стриминг первого предложения, §4a). Ниже — прогон legacy-агента до
+  переключения: директивы громкости/таймеров работают. Голосовой прогон `deploy/verify/run-directives.sh`
   (фразы синтезированы Vosk TTS, не macOS `say`) — 13/13: громкость
   louder/quiter/set-level, 3 таймера, напоминание, пустой шаг. Уровень L3:
   стенд, эмулятор станции, живая станция не задействована (08.11.2026).
@@ -81,6 +83,47 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
+
+## 4a. Задержка голоса (замеры 08.11.2026)
+
+Где уходят секунды на ходе «вопрос → первый звук» (L3; живые ходы владельца
+11:29/11:32 разобраны по логам):
+
+- **Конец фразы (ASR) — главный.** Конец фразы решает наш `qsg-asr`
+  (GigaAM, CT 100), не колонка. ten_vad считает усиленный шум комнаты речью
+  (`INPUT_GAIN=30` применяется до VAD), тишины 0,8 с не наступает: «Ты кто?»
+  распознан на 1,7 с, финал — через 4,8 с; длинная фраза — по пределу 8 с.
+  Режим `quasistreaming` с 2 повторами отвергнут (финалит «С», «Алиса.»).
+  Задача у второй сессии: энергетический порог `VAD_ENERGY_GATE_RATIO`
+  (код добавлен на CT 100, выключен по умолчанию, бэкап
+  `/root/vad_processor.py.bak-energy-20261108`).
+- **Prompt cache — исправлено.** Минутные часы в системной инструкции
+  адаптера сбрасывали кэш llama на первом ходе каждой минуты (3,5–6 с
+  prefill 8–14 тыс. токенов). Теперь в system — только дата, время — в конце
+  реплики; ходы через границу минуты — prefill ~0,3 с.
+- **OpenClaw на 2 ядрах.** Тёплый ход: ~0,3 с до вызова модели. Если с ходом
+  совпадает фоновое обслуживание (`maintenance:sqlite-snapshots`,
+  12,4 МиБ), до модели проходит до 6,6 с. Кандидат: `pct set 102 -cores 4`
+  (не сделано, решение владельца).
+- **llama падала по памяти** (12:42 OOM killer по ОЗУ, 13:01 CUDA OOM):
+  CT 100 — 12 ГБ без swap, VRAM 7,8/8,1 ГБ; лишний процесс GigaAM (тестовый
+  экземпляр ASR) роняет llama → ход 30+ с. Тесты ASR — только с
+  `CUDA_VISIBLE_DEVICES=` и одним экземпляром.
+- **Стриминг (D-19) включён:** адаптер `STREAM_REPLIES=true`
+  (drop-in `20-stream.conf`), quasar `PROCESSOR_STREAMING=true` + патч
+  `deploy/quasar/orbita-streaming.patch` (бэкап исходников и `.env` —
+  `/root/backup-quasar-stream-20261108/`). Первое предложение — 0,8–1,4 с от
+  начала хода; сказка — 1,0 с против 3,3 с полного ответа. Живая станция —
+  проверка владельца.
+- **quasar ждал legacy-агента при старте:** `orbita-health.conf` проверял
+  `127.0.0.1:8080/health` — после остановки агента любой рестарт quasar
+  зависал бы и падал. Теперь ждёт адаптер `192.168.250.105:8081/health`.
+- Откат стриминга: удалить оба `20-stream.conf`, `daemon-reload`, рестарт
+  адаптера и quasar (патч без флага ведёт себя как раньше); полностью — вернуть
+  файлы из `/root/backup-quasar-stream-20261108/`. Адаптер прошлой версии —
+  `/usr/local/bin/orbita-station-adapter.prev-stream` на CT 102.
+- `qsg-asr` пишет все запросы в `/tmp/asr-audio` (`LOG_PATH`) — приватные
+  записи голоса; оставлять ли — решение владельца.
 
 ## 5. Offline-заготовки
 

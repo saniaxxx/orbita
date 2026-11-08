@@ -11,6 +11,8 @@
 //!   Gateway can reach), `OUTBOUND_KEY` (webhook secret), `QUASAR_API_URL`
 //!   (station push), optional `TELEGRAM_CHAT_ID`. Without `OUTBOUND_KEY`
 //!   scheduling is off and timers stay native.
+//! - `STREAM_REPLIES` — send the first sentence of a core reply early (D-19);
+//!   TS-quasar must run with `PROCESSOR_STREAMING=true`.
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
@@ -70,6 +72,8 @@ async fn main() -> Result<()> {
     state.scheduler = scheduler;
     state.outbound_key = outbound_key;
     state.telegram_chat = telegram_chat;
+    state.stream_replies =
+        orbita_core::env_bool("STREAM_REPLIES", false).map_err(anyhow::Error::msg)?;
     if let Some(url) = non_empty("QUASAR_API_URL") {
         state.notifier = Some(Arc::new(QuasarNotifier::new(url)?));
     }
@@ -77,6 +81,7 @@ async fn main() -> Result<()> {
         scheduling = state.scheduler.is_some(),
         push = state.notifier.is_some(),
         telegram = state.telegram_chat.is_some(),
+        stream = state.stream_replies,
         "adapter configured"
     );
     let state = Arc::new(state);

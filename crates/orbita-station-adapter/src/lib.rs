@@ -8,6 +8,7 @@
 pub mod core;
 pub mod schedule;
 pub mod server;
+pub mod speech;
 pub mod station;
 
 pub use crate::core::{Core, CoreTurn, OpenClawConfig, OpenClawCore};

@@ -4,7 +4,10 @@
 //! functions), then `process` (recognised text). The adapter builds a contract
 //! [`InboundEvent`], answers deterministic intents locally (D-25), sends
 //! everything else to the core and renders device actions as directives. The
-//! reply is one final `partialResponse` (streaming is a separate gate, D-19).
+//! reply is one final `partialResponse`; with `stream_replies` (D-19) a core
+//! reply may come as two: the first sentence (`finished: false`) as soon as it
+//! is ready, then the rest. TS-quasar must run with `PROCESSOR_STREAMING=true`
+//! to play them as one reply.
 
 use std::{
     sync::Arc,
@@ -25,10 +28,12 @@ use axum::{
 use orbita_contracts::{CONTRACT_VERSION, DeviceAction, InboundEvent, InputKind};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 use crate::core::Core;
 use crate::schedule::{Commitment, Notifier, Scheduler, choose_delivery, split_channel};
+use crate::speech;
 use crate::station::{Directive, StationFunctions, intent_action};
 
 pub const FALLBACK_REPLY: &str = "Извини, не получилось.";
@@ -67,6 +72,8 @@ pub struct AppState {
     /// Shared secret in the webhook URL; `/outbound` is closed without it.
     pub outbound_key: Option<String>,
     pub telegram_chat: Option<String>,
+    /// Send the first sentence of a core reply early (D-19).
+    pub stream_replies: bool,
 }
 
 impl AppState {
@@ -79,6 +86,7 @@ impl AppState {
             notifier: None,
             outbound_key: None,
             telegram_chat: None,
+            stream_replies: false,
         }
     }
 }
@@ -201,9 +209,12 @@ struct Metadata {
 /// The outcome of one utterance, before it is rendered for quasar.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TurnResult {
+    /// What is left to say; after an early part only the rest of the reply.
     pub text: String,
     pub directives: Vec<Directive>,
     pub route: &'static str,
+    /// When the first sentence went out early, its latency in ms.
+    pub first_part_ms: Option<u64>,
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
@@ -237,7 +248,28 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             },
             ClientMessage::Process(data) => {
                 let duid = device_id(&data.metadata, state.identity.default_duid.as_deref());
-                let result = handle_turn(&state, &functions, &duid, &data.text).await;
+                let (early_tx, mut early_rx) = mpsc::unbounded_channel();
+                let early = state.stream_replies.then_some(early_tx);
+                let turn = handle_turn(&state, &functions, &duid, &data.text, early);
+                tokio::pin!(turn);
+                let mut early_open = true;
+                let result = loop {
+                    tokio::select! {
+                        result = &mut turn => break result,
+                        part = early_rx.recv(), if early_open => match part {
+                            Some(part) => {
+                                let response = json!({
+                                    "type": "partialResponse",
+                                    "data": {"directives": [], "text": part, "finished": false}
+                                });
+                                let _ = socket
+                                    .send(Message::Text(response.to_string().into()))
+                                    .await;
+                            }
+                            None => early_open = false,
+                        },
+                    }
+                };
                 let response = json!({
                     "type": "partialResponse",
                     "data": {
@@ -265,6 +297,7 @@ pub async fn handle_turn(
     functions: &StationFunctions,
     duid: &str,
     text: &str,
+    early: Option<mpsc::UnboundedSender<String>>,
 ) -> TurnResult {
     let started = Instant::now();
     let event = inbound_event(&state.identity, functions, duid, text);
@@ -274,6 +307,7 @@ pub async fn handle_turn(
             text: FALLBACK_REPLY.into(),
             directives: Vec::new(),
             route: "invalid",
+            first_part_ms: None,
         };
     }
     if event.text.is_empty() {
@@ -283,6 +317,7 @@ pub async fn handle_turn(
             text: EMPTY_REPLY.into(),
             directives: Vec::new(),
             route: "empty",
+            first_part_ms: None,
         };
         log_turn(&event, &result, started);
         return result;
@@ -296,6 +331,7 @@ pub async fn handle_turn(
                 text: intent.reply(),
                 directives: render(functions, &[intent_action(&intent)]),
                 route: "intent",
+                first_part_ms: None,
             };
             log_turn(&event, &result, started);
             return result;
@@ -308,31 +344,91 @@ pub async fn handle_turn(
         return result;
     }
 
-    let result = match state.core.turn(&event).await {
+    let (outcome, first) = match early {
+        Some(early) => core_streaming(state, &event, &early, started).await,
+        None => (state.core.turn(&event).await, None),
+    };
+    let result = match outcome {
         Ok(turn) => {
             let directives = render(functions, &turn.actions);
-            let text = if turn.text.is_empty() && directives.is_empty() {
-                FALLBACK_REPLY.to_owned()
-            } else {
-                turn.text
-            };
-            TurnResult {
-                text,
-                directives,
-                route: "core",
+            match &first {
+                Some((part, ms)) => {
+                    let rest = speech::remainder(&turn.text, part).unwrap_or_else(|| {
+                        warn!(turn_id = %event.turn_id, "streamed reply does not start with the first part");
+                        ""
+                    });
+                    TurnResult {
+                        text: speech::spoken(rest),
+                        directives,
+                        route: "core",
+                        first_part_ms: Some(*ms),
+                    }
+                }
+                None => {
+                    let text = speech::spoken(&turn.text);
+                    let text = if text.is_empty() && directives.is_empty() {
+                        FALLBACK_REPLY.to_owned()
+                    } else {
+                        text
+                    };
+                    TurnResult {
+                        text,
+                        directives,
+                        route: "core",
+                        first_part_ms: None,
+                    }
+                }
             }
         }
         Err(error) => {
             warn!(error = format!("{error:#}"), turn_id = %event.turn_id, "core turn failed");
             TurnResult {
-                text: FALLBACK_REPLY.into(),
+                // After an early part the station is already speaking; do
+                // not append an apology to half a sentence.
+                text: if first.is_some() {
+                    String::new()
+                } else {
+                    FALLBACK_REPLY.into()
+                },
                 directives: Vec::new(),
                 route: "core_error",
+                first_part_ms: first.map(|(_, ms)| ms),
             }
         }
     };
     log_turn(&event, &result, started);
     result
+}
+
+/// Run a streamed core turn, forwarding the first sentence to `early` while
+/// the core is still talking. Returns the first part (as sent) and its latency.
+async fn core_streaming(
+    state: &AppState,
+    event: &InboundEvent,
+    early: &mpsc::UnboundedSender<String>,
+    started: Instant,
+) -> (anyhow::Result<crate::core::CoreTurn>, Option<(String, u64)>) {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let turn = state.core.turn_streaming(event, tx);
+    tokio::pin!(turn);
+    let mut first: Option<(String, u64)> = None;
+    let mut open = true;
+    let outcome = loop {
+        tokio::select! {
+            outcome = &mut turn => break outcome,
+            part = rx.recv(), if open => match part {
+                Some(part) if first.is_none() => {
+                    let ms = started.elapsed().as_millis() as u64;
+                    let text = speech::spoken(&part);
+                    let _ = early.send(text);
+                    first = Some((part, ms));
+                }
+                Some(_) => {}
+                None => open = false,
+            },
+        }
+    };
+    (outcome, first)
 }
 
 /// Deterministic reminders and timers. With a scheduler they become core
@@ -366,6 +462,7 @@ async fn commitment_turn(
                     text: intent.reply(),
                     directives: render(functions, &[intent_action(&intent)]),
                     route: "intent",
+                    first_part_ms: None,
                 });
             };
             let duration = orbita_intents::russian::duration_phrase(seconds);
@@ -402,6 +499,7 @@ async fn commitment_turn(
                 },
                 directives: Vec::new(),
                 route: "schedule",
+                first_part_ms: None,
             }
         }
         Err(error) => {
@@ -410,6 +508,7 @@ async fn commitment_turn(
                 text: "Не получилось поставить напоминание.".into(),
                 directives: Vec::new(),
                 route: "schedule_error",
+                first_part_ms: None,
             }
         }
     })
@@ -435,6 +534,7 @@ fn log_turn(event: &InboundEvent, result: &TurnResult, started: Instant) {
         route = result.route,
         ms = started.elapsed().as_millis() as u64,
         directives = result.directives.len(),
+        first_part_ms = result.first_part_ms,
         text = %event.text,
         reply = %result.text,
         "turn"

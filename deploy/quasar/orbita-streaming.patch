@@ -1,0 +1,169 @@
+--- a/src/routers/uniproxy/input-handler.ts
++++ b/src/routers/uniproxy/input-handler.ts
+@@ -65,6 +65,8 @@
+   dialogFinished: boolean
+   directives: WrappedDirective[]
+   shouldListen: boolean
++  /** orbita: streaming — more spoken parts follow in the same reply. */
++  streaming?: boolean
+   text: null | string
+ }
+ 
+@@ -108,6 +110,11 @@
+ }
+ 
+ const MAX_WAIT = 5000
++// orbita: streaming. With PROCESSOR_STREAMING=true a not-finished partial is
++// the next spoken part of the same reply (one AliceResponse, one TTS stream
++// per part, Close only on the last), not the Alice `continue` handshake.
++const PROCESSOR_STREAMING = process.env.PROCESSOR_STREAMING === 'true'
++const STREAMING_PART_TIMEOUT = 30_000
+ 
+ export class InputHandler {
+   private readonly logger = getLogger()
+@@ -157,6 +164,24 @@
+     return null
+   }
+ 
++  /** orbita: streaming — the next part of a streamed reply, or null on timeout. */
++  async nextStreamingPart (): Promise<null | ProcessorPartialResponse> {
++    const deadline = Date.now() + STREAMING_PART_TIMEOUT
++    while (Date.now() < deadline) {
++      const part = await this.getPartialResponse()
++      if (part) {
++        if (part.finished) {
++          this.closeSession()
++        }
++        return part
++      }
++      if (!this.session) {
++        return null
++      }
++    }
++    return null
++  }
++
+   async openSession (parentSpan?: Span): Promise<void> {
+     if (this.session) {
+       this.logger.debug('Session already opened')
+@@ -382,6 +407,25 @@
+         text: partialResponse.text
+       }
+     }
++
++    if (PROCESSOR_STREAMING) {
++      span?.setAttribute('endReason', 'partial-response-streaming')
++      span?.setAttribute('text', partialResponse.text)
++      span?.end()
++      this.logger.debug('Partial response starts a streamed reply')
++      return {
++        dialogFinished: true,
++        directives: [
++          ...(partialResponse.directives.map(directive =>
++            this.properties.directiveFunctionProvider.convertToWrappedDirective(directive, metadata))
++            .filter(Boolean) as WrappedDirective[]),
++          ttsPlayPlaceholderDirective()
++        ],
++        shouldListen: false,
++        streaming: true,
++        text: partialResponse.text
++      }
++    }
+ 
+     this.logger.debug('Partial response is not finished, sending continue')
+     span?.setAttribute('endReason', 'partial-response-not-finished')
+--- a/src/routers/uniproxy/uniproxy-connection.ts
++++ b/src/routers/uniproxy/uniproxy-connection.ts
+@@ -991,6 +991,11 @@
+           this.closeConnection()
+         }
+       } else {
++        if (result.streaming) {
++          await this.sendStreamingTTS(result.text, referenceMessageId, span)
++          span?.end()
++          return
++        }
+         // The station plays one TTS stream per AliceResponse: it stops after
+         // the first StreamControl.Close, so several phrase streams only voice
+         // the first phrase. Keep one stream until multi-stream playback is
+@@ -1080,6 +1085,80 @@
+     await this.sendRawData(Buffer.concat([Buffer.from('AAPI', 'ascii'), encoded]), true)
+   }
+ 
++  // orbita: streaming. Each part gets its own TtsSpeak stream; only the last
++  // one is closed. The station plays every stream in order and stops at the
++  // first StreamControl.Close (verified on the device 04.11.2026).
++  private async sendStreamingTTS (firstText: string, referenceMessageId: string, span?: Span): Promise<void> {
++    let lastStreamId: null | number = null
++    let parts = 0
++    const speak = async (text: string): Promise<void> => {
++      const started = Date.now()
++      try {
++        const { voiceOutput } = await this.parameters.tts.synthesize({
++          parentSpan: span ?? this.inputSpan ?? this.dialogSpan,
++          text
++        })
++        lastStreamId = await this.openTTSStream(voiceOutput, referenceMessageId)
++        parts++
++        this.logger.info(`Streamed part ${parts} (${Date.now() - started} ms): ${voiceOutput.length} bytes ${JSON.stringify(text)}`)
++      } catch (error) {
++        this.logger.error(`Failed to synthesize streamed part ${JSON.stringify(text)}: `, error)
++      }
++    }
++    if (firstText.trim() !== '') {
++      await speak(firstText)
++    }
++    for (;;) {
++      const part = await this.inputHandler.nextStreamingPart()
++      if (part === null) {
++        this.logger.warn('Streamed reply timed out waiting for the next part')
++        break
++      }
++      if (part.directives.length > 0) {
++        this.logger.warn(`Ignoring directives in a later streamed part: ${JSON.stringify(part.directives)}`)
++      }
++      if (part.text.trim() !== '') {
++        await speak(part.text)
++      }
++      if (part.finished) {
++        break
++      }
++    }
++    if (lastStreamId === null) {
++      await this.sendTTS(Buffer.from([]), referenceMessageId)
++      return
++    }
++    await this.sendServerMessage({
++      StreamControl: {
++        Close: {},
++        MessageId: randomUUID(),
++        StreamId: lastStreamId
++      },
++      Timings: this.getTimings()
++    })
++  }
++
++  private async openTTSStream (audioData: Buffer, referenceMessageId: string): Promise<number> {
++    this.lastOutputAudioStreamId++
++    const streamId = this.lastOutputAudioStreamId
++    await this.sendServerMessage({
++      Event: {
++        Header: {
++          MessageId: randomUUID(),
++          RefMessageId: referenceMessageId,
++          StreamId: streamId
++        },
++        TtsSpeak: {
++          Format: 'audio/opus',
++          LazyTtsStreaming: false,
++        }
++      },
++      Timings: this.getTimings()
++    })
++    await this.sendAudioDataMessage(streamId, audioData)
++    return streamId
++  }
++
+   private async sendTTS (audioData: Buffer, referenceMessageId: string): Promise<void> {
+     this.lastOutputAudioStreamId++
+     await this.sendServerMessage({

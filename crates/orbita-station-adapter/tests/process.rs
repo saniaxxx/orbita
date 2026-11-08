@@ -469,3 +469,237 @@ async fn openclaw_client_tools_round_trip() {
     assert_eq!(tool_message["tool_call_id"], "call_1");
     assert!(tool_message["content"].as_str().unwrap().starts_with("ok:"));
 }
+
+// --- Streaming (D-19) ---------------------------------------------------------
+
+/// A core that says its first sentence early, then finishes later.
+struct StreamingCore {
+    first: &'static str,
+    full: &'static str,
+}
+
+#[async_trait]
+impl Core for StreamingCore {
+    async fn turn(&self, _event: &InboundEvent) -> Result<CoreTurn> {
+        Ok(CoreTurn {
+            text: self.full.into(),
+            actions: Vec::new(),
+        })
+    }
+
+    async fn turn_streaming(
+        &self,
+        _event: &InboundEvent,
+        first: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<CoreTurn> {
+        first.send(self.first.into()).unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        self.turn(_event).await
+    }
+}
+
+/// All `partialResponse` messages of one utterance, up to the finished one.
+async fn process_all(url: &str, text: &str) -> Vec<(Value, Duration)> {
+    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    let message = json!({"type": "process", "data": {
+        "metadata": {"internal": {"deviceId": "duid-kids"}}, "text": text,
+    }});
+    let started = std::time::Instant::now();
+    socket
+        .send(Message::Text(message.to_string().into()))
+        .await
+        .unwrap();
+    let mut out = Vec::new();
+    loop {
+        let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+            .await
+            .expect("adapter reply timeout")
+            .expect("adapter closed the socket")
+            .expect("websocket error");
+        if let Message::Text(text) = message {
+            let value: Value = serde_json::from_str(text.as_str()).unwrap();
+            assert_eq!(value["type"], "partialResponse");
+            let finished = value["data"]["finished"] == true;
+            out.push((value["data"].clone(), started.elapsed()));
+            if finished {
+                return out;
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn streamed_core_reply_sends_the_first_sentence_early() {
+    let core = Arc::new(StreamingCore {
+        first: "Я голосовой ассистент на колонке.",
+        full: "Я голосовой ассистент на колонке. Умею **искать** и включать мультики.",
+    });
+    let mut state = AppState::new(core, identity(), "fake");
+    state.stream_replies = true;
+    let url = format!("ws://{}/process", serve_state(state).await);
+    let parts = process_all(&url, "Алиса, ты кто?").await;
+    assert_eq!(parts.len(), 2, "{parts:?}");
+    assert_eq!(parts[0].0["finished"], false);
+    assert_eq!(parts[0].0["text"], "Я голосовой ассистент на колонке.");
+    assert!(parts[0].0.get("shouldListen").is_none());
+    // The first part does not wait for the core to finish.
+    assert!(parts[0].1 < Duration::from_millis(120), "{:?}", parts[0].1);
+    assert_eq!(parts[1].0["finished"], true);
+    assert_eq!(parts[1].0["shouldListen"], false);
+    // Only the rest, without markup, and nothing repeated.
+    assert_eq!(parts[1].0["text"], "Умею искать и включать мультики.");
+}
+
+#[tokio::test]
+async fn without_streaming_the_reply_is_one_message() {
+    let core = Arc::new(StreamingCore {
+        first: "Я голосовой ассистент на колонке.",
+        full: "Я голосовой ассистент на колонке. Умею искать.",
+    });
+    let url = format!(
+        "ws://{}/process",
+        serve_state(AppState::new(core, identity(), "fake")).await
+    );
+    let parts = process_all(&url, "ты кто?").await;
+    assert_eq!(parts.len(), 1);
+    assert_eq!(
+        parts[0].0["text"],
+        "Я голосовой ассистент на колонке. Умею искать."
+    );
+}
+
+#[tokio::test]
+async fn intents_are_never_streamed() {
+    let core = Arc::new(StreamingCore {
+        first: "не должно прозвучать",
+        full: "не должно прозвучать",
+    });
+    let mut state = AppState::new(core, identity(), "fake");
+    state.stream_replies = true;
+    let url = format!("ws://{}/process", serve_state(state).await);
+    let (mut socket, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
+    for message in [
+        json!({"type": "prepare", "data": {"directiveFunctions": prepare()}}),
+        json!({"type": "process", "data": {"metadata": {"internal": {}}, "text": "сделай громче"}}),
+    ] {
+        socket
+            .send(Message::Text(message.to_string().into()))
+            .await
+            .unwrap();
+    }
+    let first = loop {
+        if let Message::Text(text) = socket.next().await.unwrap().unwrap() {
+            break serde_json::from_str::<Value>(text.as_str()).unwrap();
+        }
+    };
+    assert_eq!(first["data"]["finished"], true);
+    assert_eq!(
+        directive_names(&first["data"]),
+        vec!["smart_speaker_set_sound_volume_louder"]
+    );
+}
+
+/// A Gateway that streams SSE: round 1 a client tool call, round 2 text.
+async fn streaming_gateway(rounds: Arc<Mutex<Vec<Value>>>) -> String {
+    let app = Router::new().route(
+        "/v1/chat/completions",
+        post(move |Json(body): Json<Value>| {
+            let rounds = rounds.clone();
+            async move {
+                assert_eq!(body["stream"], true);
+                let round = {
+                    let mut rounds = rounds.lock().unwrap();
+                    rounds.push(body);
+                    rounds.len()
+                };
+                let chunk = |delta: Value, finish: Value| {
+                    format!(
+                        "data: {}\n\n",
+                        json!({"object": "chat.completion.chunk",
+                               "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]})
+                    )
+                };
+                let mut sse = chunk(json!({"role": "assistant"}), Value::Null);
+                if round == 1 {
+                    sse += &chunk(
+                        json!({"tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                                "function": {"name": "reminder_create", "arguments": ""}}]}),
+                        Value::Null,
+                    );
+                    sse += &chunk(
+                        json!({"tool_calls": [{"index": 0, "function": {
+                            "arguments": "{\"in_seconds\": 60, \"text\": \"чай\"}"}}]}),
+                        Value::Null,
+                    );
+                    sse += &chunk(json!({}), json!("tool_calls"));
+                } else {
+                    for token in [
+                        "Поставила",
+                        " напоминание",
+                        " через",
+                        " минуту.",
+                        " Не",
+                        " забудь",
+                        " про",
+                        " чай.",
+                    ] {
+                        sse += &chunk(json!({"content": token}), Value::Null);
+                    }
+                    sse += &chunk(json!({}), json!("stop"));
+                }
+                sse += "data: [DONE]\n\n";
+                ([("content-type", "text/event-stream")], sse)
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    format!("http://{addr}")
+}
+
+#[tokio::test]
+async fn openclaw_streaming_parses_sse_with_client_tools() {
+    let rounds = Arc::new(Mutex::new(Vec::new()));
+    let scheduler = Arc::new(FakeScheduler::default());
+    let core = OpenClawCore::new(OpenClawConfig {
+        base_url: streaming_gateway(rounds.clone()).await,
+        token: "secret".into(),
+        model: "openclaw/default".into(),
+        timeout: Duration::from_secs(5),
+        max_tool_rounds: 2,
+    })
+    .unwrap()
+    .with_scheduler(scheduler.clone(), None);
+    let functions = orbita_station_adapter::StationFunctions::from_prepare(&prepare()).unwrap();
+    let event = orbita_station_adapter::server::inbound_event(
+        &Identity::default(),
+        &functions,
+        "duid-1",
+        "напомни про чай через минуту",
+    );
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let turn = core.turn_streaming(&event, tx).await.unwrap();
+    assert_eq!(
+        turn.text,
+        "Поставила напоминание через минуту. Не забудь про чай."
+    );
+    assert_eq!(
+        rx.recv().await.as_deref(),
+        Some("Поставила напоминание через минуту.")
+    );
+    assert_eq!(rx.recv().await, None);
+    assert_eq!(scheduler.jobs.lock().unwrap().len(), 1);
+    let rounds = rounds.lock().unwrap();
+    assert_eq!(rounds.len(), 2);
+    let tool_message = rounds[1]["messages"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()
+        .clone();
+    assert_eq!(tool_message["role"], "tool");
+    assert_eq!(tool_message["tool_call_id"], "call_1");
+}
