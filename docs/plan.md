@@ -14,7 +14,7 @@
   в каждый момент принадлежат только одному ядру.
 - Каждая фаза заканчивается тестами, baseline-замером и rollback-командой.
 - Изменения на рабочем стенде — только с rollback, в окно простоя и после
-  соответствующего gate. Фазы 1 и 3 могут менять llama/wb-rules, но не
+  соответствующего gate. Фаза 1 может менять llama, но не
   одновременно с пилотом станции.
 - Оценки — рабочие дни, без буфера на ручные стендовые команды.
 
@@ -75,13 +75,15 @@
 ## Фаза 3. home-MCP (6–8 дней)
 
 - `home-MCP`: state cache, devices, commands, scenes, audit.
-- wb-rules: command-устройства, ack, audit-топик, сцены.
+- Backend на MQTT Wiren Board (из `orbita-home`): state cache, команды в
+  `…/on`, ack по state-топику, сцены и аудит внутри сервиса; wb-rules не
+  меняются. Развернуть на `orbita-hub` рядом с `orbita-tv`.
 - Read-only state; затем свет и безопасные команды.
 - Проверить `executed` по state-топику и таймауту.
 - Сверить список устройств с HA backup; отбросить leftovers.
 - Дом остаётся автономным при падении MCP.
 
-**Gate:** команда света доходит до wb-rules и подтверждается; при падении
+**Gate:** команда света доходит до Wiren Board и подтверждается; при падении
 home-MCP свет/автоматизации работают.
 
 ## Фаза 4. Station adapter (5–7 дней)
@@ -115,7 +117,8 @@ quasar на `orbita-agent`.
 
 ## Фаза 6. События и outbound (5–7 дней)
 
-- wb-rules публикует события; home-MCP фильтрует, хранит cursor, dedup.
+- home-MCP выводит события из изменений MQTT-топиков, фильтрует, хранит
+  cursor, dedup.
 - `home_events` + MCP Events (signed webhooks) для критичных.
 - HTTPS callback в LAN: reverse proxy/Tailscale.
 - Обязательства во времени (D-26): напоминания/будильники/таймеры создаёт
@@ -174,7 +177,7 @@ quasar на `orbita-agent`.
 - Outbound: напоминания и события без push-пути теряются.
 - Shadow без dry-run выполняет действия дважды.
 - Identity: общий principal озвучит приватную память; DUID не передаётся.
-- Home: home-MCP потребует command/ack/audit в wb-rules.
+- Home: ack/аудит/сцены целиком в `orbita-home-mcp`; wb-rules не трогаем.
 - Wyoming: без HA нужен свой orchestrator; VRAM.
 - OpenClaw: API меняется; сторонние skills и prompt injection.
 - Сроки 41–58 дней без буфера; стендовые команды — через человека.

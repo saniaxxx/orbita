@@ -62,14 +62,18 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 
 ## 4. Что ещё не сделано
 
-- Станция ещё говорит через legacy `orbita-agent`: quasar не переключён на
-  адаптер (изменение прод-сервиса; команда в §5a, выполняет человек).
+- Станция переключена на адаптер (08.11.2026, quasar `PROCESSOR_BASIC_URL` →
+  `http://192.168.250.105:8081/process`, бэкап `.env.bak-adapter-20261108`).
+  Проверено симулятором голосом через quasar (L3): «привет» — ответ + TTS,
+  «сделай громче» — `sound_louder`. Живая станция — проверка владельца.
 - Telegram не подключён: нет токена бота и chat id. «Напомни в телеграм»
   честно отвечает «Телеграм пока не подключён, напомню здесь».
 - Нет каналов mobile/web и home-MCP на реальном wb-rules (свет у legacy есть,
   через адаптер — нет).
-- Один слот llama: до переключения станции его делят legacy и OpenClaw; после —
-  только OpenClaw (станция и адаптер LLM не используют).
+- LLM вызывает только OpenClaw (станция и адаптер LLM не используют).
+  Очередь к одному слоту llama — только между ходами самого OpenClaw:
+  Telegram, фоновые `agentTurn`, heartbeat каждые 30 мин, ночной
+  memory-dreaming. Legacy ходит в llama, только если quasar вернуть на него.
 - Workspace-ворота проходят с `CARGO_TARGET_DIR=/tmp/orbita-target`
   (зависание `orbita-proto` было из-за target на внешнем диске).
 - Нет `home-MCP` и событий дома через MCP.
@@ -121,7 +125,7 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - Откат адаптера: `systemctl disable --now orbita-station-adapter` на
   `orbita-brain`; прошлые бинарник/юнит/env — `*.prev` в `/usr/local/bin` и
   `/root`; конфиг OpenClaw — бэкапы выше, затем `systemctl restart openclaw`.
-- **Переключение станции (выполняет человек, на pve3):**
+- **Переключение станции (выполнено 08.11.2026; команда для повтора):**
 
   ```sh
   pct exec 101 -- sh -c 'cd /opt/quasar-server && cp -p .env .env.bak-adapter-20261108 && sed -i "s|^PROCESSOR_BASIC_URL=.*|PROCESSOR_BASIC_URL=http://192.168.250.105:8081/process|" .env && systemctl restart quasar-server'
