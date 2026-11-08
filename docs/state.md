@@ -29,7 +29,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 ## 3. Что работает
 
 - **LLM**: локальный OpenAI-совместимый endpoint, `qwen3.5-9b-q4km`.
-- **STT**: GigaAM на CUDA/CPU; используется quasar.
+- **STT**: GigaAM на CUDA/CPU; используется quasar. EOU-фикс (08.11.2026,
+  ветка `feat/asr-eou`): energy gate 0.3 + cap 900, усиление один раз
+  (`RECOGNIZE_GAIN=1`); проверен L2 на записях и L3 на живом `:8006`.
 - **TTS**: Vosk TTS на CUDA; HTTP и Opus 48 кГц для станции. Уникальная фраза
   ~0,93 с, повтор ~0,2 с.
 - **Станция**: quasar/AAPI, `/process`; `orbita-agent` отвечает, директивы
@@ -81,6 +83,49 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
+
+## 4a. EOU в ASR (ветка `feat/asr-eou`, 08.11.2026)
+
+- Проблема: ten_vad на усиленном потоке станции считает шум после фразы
+  речью, поэтому 800 мс тишины не наступает и quasar получает первый
+  `end_of_utt=true` только по `max_utterance` (8 с) или позже. Пример:
+  «Ты кто?» — partial 11:32:01.7, final 11:32:06.5.
+- Патч `deploy/asr/qsg-orbita.patch` (база qsg `e1770f1`, применён на CT100
+  в `/opt/qsg`):
+  - energy gate: сегменты VAD с RMS ниже `peak * 0.3` отбрасываются;
+    `VAD_ENERGY_GATE_MAX_RMS=900` ограничивает порог, чтобы громкий выброс
+    не подавил более тихую речь; пик сбрасывается на каждую фразу;
+  - `INPUT_GAIN=30` применяется один раз в streaming path;
+    `RECOGNIZE_GAIN=1` — второй раз не усиливаем. Двойное усиление реально
+    ломало текст на записях: `Кто?` вместо `Алиса, ты кто?`, `Сань, ты кто?`
+    вместо `Ты кто?`.
+- Юнит: drop-in `/etc/systemd/system/qsg-asr.service.d/10-orbita-eou.conf`
+  с `RECOGNIZE_GAIN=1`, `VAD_ENERGY_GATE_RATIO=0.3`,
+  `VAD_ENERGY_GATE_MAX_RMS=900`; `INPUT_GAIN=30` остаётся в основном юните.
+  Бэкап юнита и drop-in: `/root/backup-qsg-eou-20261108/`. Откат:
+  `git checkout -- asr_core/processors/vad_processor.py quasistreaming-server.py`
+  в `/opt/qsg`, удалить `10-orbita-eou.conf`, `daemon-reload`,
+  `systemctl restart qsg-asr`.
+- Проверка L2 (CPU-экземпляр на записях, `INPUT_GAIN=1`, gate 0.3/cap 900):
+  «Алиса, ты кто?» — final 2.98 с, полный текст; длинная 9-секундная фраза —
+  EOU примерно через 1 с после последней речи вместо `max_utterance`;
+  «Алиса, … пауза … вопрос» не обрезается; ложного финала `С.` при
+  `VAD_MIN_SPEECH_DURATION=1.5` нет.
+- Проверка L3 (живой `qsg-asr` на GPU, прямой replay в `:8006`): «Алиса, ты
+  кто?» — final 2.59 с; длинная фраза — final 7.17 с, полный текст; фраза с
+  паузой после «Алиса» — final 3.84 с, полный текст; у всех
+  `reason=eou_silence`. `llama` active, новых рестартов нет.
+- Симулятор (Vosk TTS → Ogg → quasar, duid станции): ASR вернул
+  `end_of_utt=true` и полный текст, но путь ответа во время стриминговых
+  работ отдал только `@@mm_semantic_frame` и не дошёл до адаптера/LLM
+  (в llama запроса не было). Это не результат ASR; проверять после
+  завершения стриминга.
+- Инцидент: тестовые экземпляры ASR на `:8016` без `CUDA_VISIBLE_DEVICES=`
+  дважды уронили `llama` (12:42 OOM-kill, 13:01 CUDA OOM). Тестовые
+  экземпляры остановлены; дальше только с пустым `CUDA_VISIBLE_DEVICES=`,
+  preflight `free -m` ≥ 2 ГБ, один экземпляр, проверка `nvidia-smi` и
+  `systemctl is-active llama` после теста. Текущий `NRestarts=2` у llama —
+  следствие этих падений.
 
 ## 5. Offline-заготовки
 
