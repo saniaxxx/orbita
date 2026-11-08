@@ -1683,6 +1683,7 @@ dependencies = [
  "anyhow",
  "axum",
  "orbita-core",
+ "orbita-mcp-http",
  "rmcp",
  "schemars",
  "serde",
@@ -1700,12 +1701,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbita-mcp-http"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "rmcp",
+ "tokio",
+ "tower",
+ "tracing",
+]
+
+[[package]]
 name = "orbita-mcp-search"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
  "orbita-core",
+ "orbita-mcp-http",
  "reqwest",
  "rmcp",
  "schemars",
@@ -1839,6 +1852,7 @@ dependencies = [
  "anyhow",
  "axum",
  "orbita-core",
+ "orbita-mcp-http",
  "prost 0.13.5",
  "rmcp",
  "rustls 0.23.46",

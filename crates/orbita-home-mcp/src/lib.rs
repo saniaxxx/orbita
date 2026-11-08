@@ -18,7 +18,7 @@ use rmcp::{
     model::{Implementation, ServerCapabilities, ServerConfig},
     schemars, tool, tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -553,7 +553,7 @@ pub fn build_router(server: HomeServer) -> Router {
                 move || Ok(server.clone())
             },
             Default::default(),
-            StreamableHttpServerConfig::default(),
+            orbita_mcp_http::server_config(),
         );
     Router::new()
         .route("/health", get(http_health))

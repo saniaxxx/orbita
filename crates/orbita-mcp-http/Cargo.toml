@@ -1,0 +1,16 @@
+[package]
+name = "orbita-mcp-http"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Shared HTTP hardening for orbita MCP servers: allowed hosts and bearer auth"
+
+[dependencies]
+axum.workspace = true
+rmcp.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tower.workspace = true

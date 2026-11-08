@@ -15,6 +15,7 @@ members = [
     "crates/orbita-home",
     "crates/orbita-home-mcp",
     "crates/orbita-intents",
+    "crates/orbita-mcp-http",
     "crates/orbita-station-adapter",
     "crates/orbita-agent",
     "crates/orbita-tv",

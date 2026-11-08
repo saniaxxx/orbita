@@ -46,8 +46,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
   локальная модель `local/qwen3.5-9b-q4km`, context 32768.
-  MCP search/TV подключены через SSH-туннель `18899/18898`; `mcp probe` видит
-  1 + 9 инструментов, `tools.toolSearch=false` отдаёт схемы напрямую.
+  MCP search/TV подключены напрямую: `http://192.168.250.103:8899/mcp` и
+  `:8898/mcp` с `Authorization: Bearer` (см. «MCP по сети» ниже);
+  `tools.toolSearch=false` отдаёт схемы напрямую.
   Профиль `minimal` + `bundle-mcp`: в промпте только `search__search`,
   `tv__*` и служебные minimal-инструменты, без `exec`/`fs`/`browser`.
   Промпт ~4.7k токенов, prefill ~2.0 с; проверены реальные tool calls:
@@ -142,7 +143,7 @@ Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`f
 шлёт grammar per-request; `main` (`0f54562`) ожидает глобальную GBNF. Поэтому
 откат — связанная операция, а не просто `git checkout main`:
 
-1. На `orbita-brain`: `systemctl disable --now openclaw orbita-mcp-tunnel`
+1. На `orbita-brain`: `systemctl disable --now openclaw orbita-station-adapter`
    (если OpenClaw больше не нужен); конфиг OpenClaw —
    `/home/openclaw/.openclaw/openclaw.json.bak-20261108`.
 2. На `orbita-ai`: вернуть `/root/llama.service.bak-20261108` (глобальная GBNF,
@@ -153,8 +154,26 @@ Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`f
    orbita-agent`.
 4. Проверить `/health` агента и `orbita-cli ask "привет"`.
 
-MCP-туннель — временная схема: unit `orbita-mcp-tunnel` enabled и переживает
-рестарт CT, но целевая схема — MCP на приватном IP CT101 с токеном/mTLS.
+### MCP по сети (08.11.2026, вместо SSH-туннеля)
+
+- Было: `orbita-mcp-tunnel` на `orbita-brain` пробрасывал порты по SSH как
+  `root@192.168.250.103` — у контейнера с агентом был root-доступ к hub.
+  Туннель, его юнит и ключ удалены; `authorized_keys` root на `orbita-hub`
+  пуст (бэкап `/root/backup-mcp-auth-20261108/authorized_keys`).
+- Стало: общий крейт `orbita-mcp-http` — rmcp `allowed_hosts` из
+  `MCP_ALLOWED_HOSTS`, `Authorization: Bearer $MCP_TOKEN` для сетевых
+  клиентов (loopback на hub — legacy-агент — доверен, как раньше), отказ
+  стартовать на не-loopback адресе без токена. `orbita-tv` и
+  `orbita-mcp-search` слушают `0.0.0.0` (drop-in `20-mcp-auth.conf`), токен в
+  `/etc/orbita/mcp.env` (0600). OpenClaw передаёт заголовок из `mcp.servers.*.headers`
+  (бэкап `openclaw.json.bak-mcp-direct-20261108`).
+- Проверено (L3): loopback без токена 200, сеть без токена 401, с токеном 200;
+  без туннеля OpenClaw ответил про погоду (search) и TV в детской (tv).
+- Откат: на `orbita-hub` вернуть бинарники/юниты из
+  `/root/backup-mcp-auth-20261108/`, удалить drop-in'ы, `daemon-reload`,
+  перезапустить `orbita-tv orbita-mcp-search orbita-agent`; на `orbita-brain`
+  вернуть `openclaw.json.bak-mcp-direct-20261108` (туннель тогда придётся
+  создать заново с новым ключом).
 
 ## 7. Ближайшие шаги
 

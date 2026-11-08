@@ -16,17 +16,22 @@ async fn main() -> Result<()> {
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .with_context(|| format!("invalid listen address {host}:{port}"))?;
-    let app = build_router(HomeServer::new(simulated));
+    let token = orbita_mcp_http::token_from_env(&host).map_err(anyhow::Error::msg)?;
+    let protected = token.is_some();
+    let app = orbita_mcp_http::protect(build_router(HomeServer::new(simulated)), token);
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("binding {addr}"))?;
-    tracing::info!(%addr, simulated, "orbita-home-mcp listening");
+    tracing::info!(%addr, simulated, protected, "orbita-home-mcp listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("serving HTTP")?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("serving HTTP")?;
     Ok(())
 }
 
