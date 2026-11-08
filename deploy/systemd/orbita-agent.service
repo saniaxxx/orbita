@@ -17,6 +17,7 @@ Environment=AGENT_FALLBACK_BASE_URL=
 Environment=DEFAULT_DUID=LG0000000000002793950000ab593116
 Environment=HISTORY_LIMIT=12
 Environment=SCHEDULER_INTERVAL_MS=1000
+Environment=OPENAI_GRAMMAR_FILE=/etc/orbita/llama-json.gbnf
 # OPENAI_BASE_URL, OPENAI_MODEL and OPENAI_API_KEY live here, not in the repository.
 EnvironmentFile=-/etc/orbita/secrets.env
 ExecStart=/opt/orbita/target/release/orbita-agent

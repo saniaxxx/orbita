@@ -28,12 +28,21 @@ async fn main() -> Result<()> {
         warn!(recovered, "recovered running tasks after restart");
     }
 
+    let grammar = std::env::var("OPENAI_GRAMMAR_FILE")
+        .ok()
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| {
+            std::fs::read_to_string(&path)
+                .map_err(|error| anyhow::anyhow!("reading OPENAI_GRAMMAR_FILE {path}: {error}"))
+        })
+        .transpose()?;
     let primary = OpenAiClient::new(
         &config.openai_base_url,
         &config.openai_api_key,
         &config.openai_model,
     )
-    .map_err(anyhow::Error::msg)?;
+    .map_err(anyhow::Error::msg)?
+    .with_grammar(grammar);
     let llm: Arc<dyn LlmClient> = if config.fallback_base_url.trim().is_empty() {
         Arc::new(primary)
     } else {

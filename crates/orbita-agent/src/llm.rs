@@ -56,6 +56,7 @@ pub struct OpenAiClient {
     base_url: String,
     api_key: String,
     model: String,
+    grammar: Option<String>,
 }
 
 impl OpenAiClient {
@@ -73,7 +74,16 @@ impl OpenAiClient {
             base_url: base_url.into(),
             api_key: api_key.into(),
             model: model.into(),
+            grammar: None,
         })
+    }
+
+    /// Attach a GBNF grammar to every request. Keeping the grammar on the
+    /// request, not on the llama-server, lets OpenClaw use the same endpoint
+    /// without the agent's JSON constraint.
+    pub fn with_grammar(mut self, grammar: Option<String>) -> Self {
+        self.grammar = grammar;
+        self
     }
 }
 
@@ -123,11 +133,15 @@ impl LlmClient for FallbackLlm {
 impl LlmClient for OpenAiClient {
     async fn complete(&self, messages: &[Message]) -> Result<String, String> {
         let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
-        let mut request = self.client.post(&url).json(&json!({
+        let mut payload = json!({
             "model": self.model,
             "messages": messages,
             "stream": true,
-        }));
+        });
+        if let Some(grammar) = &self.grammar {
+            payload["grammar"] = json!(grammar);
+        }
+        let mut request = self.client.post(&url).json(&payload);
         if !self.api_key.is_empty() {
             request = request.bearer_auth(&self.api_key);
         }
