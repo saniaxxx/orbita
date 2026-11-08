@@ -42,14 +42,16 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   читает состояние. MCP-фасада дома пока нет.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
-  локальная модель `local/qwen3.5-9b-q4km` с context 65536.
+  локальная модель `local/qwen3.5-9b-q4km`, context 32768.
   MCP search/TV подключены через SSH-туннель `18899/18898`; `mcp probe` видит
   1 + 9 инструментов, `tools.toolSearch=false` отдаёт схемы напрямую.
-  Проверены реальные tool calls: `search__search` вернул живые результаты,
-  `tv__state` — состояние TV в детской. Уровень — стенд без станции (L3).
+  Профиль `minimal` + `bundle-mcp`: в промпте только `search__search`,
+  `tv__*` и служебные minimal-инструменты, без `exec`/`fs`/`browser`.
+  Промпт ~4.7k токенов, prefill ~2.0 с; проверены реальные tool calls:
+  `search__search` и `tv__state`. Уровень — стенд без станции (L3).
   **D-21 частично:** глобальная GBNF убрана, legacy-агент шлёт `grammar`
-  per-request; llama `-c 65536`, KV q4, но по-прежнему `-np 1`. OpenClaw и
-  голос делят слот; POC запускать при простое станции. Свободно ~178 МиБ VRAM.
+  per-request; llama `-c 32768`, KV q8, `-np 1`. OpenClaw и голос делят слот;
+  POC запускать при простое станции. Свободно ~382 МиБ VRAM.
 
 ## 4. Что ещё не сделано
 
