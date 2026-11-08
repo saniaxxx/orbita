@@ -243,7 +243,8 @@ OpenClaw → orbita-home-mcp (orbita-hub) → MQTT Wiren Board → устрой�
   с `retain=false`, подтверждает `executed` по state-топику с таймаутом
   (`HOME_ACK_TIMEOUT_MS`, 2 с), хранит idempotency/audit/cursor. Опасные
   capability — `denied`; `confirm` из tool call не даёт прав. Сцены пока не
-  настроены (`scenes=[]`). На стенд не развёрнуто.
+  настроены (`scenes=[]`). Развёрнуто на `orbita-hub` (L3, без станции);
+  `meta/error` подписывается на control-level и device-level fallback.
 
 Инструменты (MCP-сервер `home` даёт префикс `home_`):
 

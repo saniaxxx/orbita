@@ -48,8 +48,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Дом**: wb-rules владеет safety/сценами; свет Wiren Board. В ветке
   `feat/home-mcp` (08.11.2026) у `orbita-home-mcp` появился реальный backend:
   state cache из MQTT, команды в `…/on`, ack по state-топику (2 с),
-  идемпотентность, policy и audit. Проверено оффлайн (L2): 19 тестов
-  `orbita-home`, 14 тестов `orbita-home-mcp`, живой MCP handshake по HTTP.
+  идемпотентность, policy и audit. Проверено оффлайн (L2): 20 unit +
+  1 fake-broker тест `orbita-home`, 15 тестов `orbita-home-mcp`, живой MCP
+  handshake по HTTP.
   На стенд не развёрнут и с реальным Wiren Board не проверялся; сцены не
   настроены и не выдаются. В `main`/`feat/openclaw` не влито.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
@@ -212,11 +213,11 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - `crates/orbita-home` — `Home` (кэш, validate, risk/Grant, rate limit,
   retain=false), `mqtt::start[_with_status]`, broadcast изменений по state и
   `meta/error`, `matches_value` для ack (bool и числа как `f64`), отдельные
-  `stale` (возраст) и `available` (есть значение, нет error); 19 тестов.
+  `stale` (возраст) и `available` (есть значение, нет error); 20 unit + 1 fake-broker тест.
 - `crates/orbita-home-mcp` — MCP-фасад: backend на MQTT Wiren Board
   (`HOME_MCP_SIMULATED=0`) и fake для shadow; devices/state/command/scenes/
   scene_run/events/health, policy (dangerous deny by default), idempotency,
-  epoch курсора, audit, ack по state-топику; 14 тестов.
+  epoch курсора, audit, ack по state-топику; 15 тестов.
 - `crates/orbita-intents` — громкость, таймер (в т.ч. «засеки N минут»),
   парсер напоминаний; общий для legacy-агента и адаптера; legacy
   `fastpath`/`reminder` стали обёртками, 18/18 directive-тестов зелёные.
@@ -274,15 +275,23 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - `stale` — возраст последнего сообщения (WB публикует retained и только по
   изменению), `available` — есть значение и нет `meta/error`. Для опасных
   действий проверяется `available`, а не 30-секундный возраст.
-- `meta/error` в `deploy/home/home.json` переведён на уровень устройства
-  (`/devices/wb-…/meta/error`): один топик обслуживает все его контролы.
+- `meta/error`: живой WB публикует на уровне контрола
+  (`/devices/wb-…/controls/K1/meta/error`); `orbita-home` подписывается на
+  настроенный топик и, если он control-level, дополнительно на
+  `/devices/wb-…/meta/error`. `deploy/home/home.json` остаётся per-control,
+  device-level — fallback.
+- Регрессия: 51 topic при request channel 100 и подписке до старта loop +
+  на ConnAck блокировали event loop — state не приходил (`available=0`).
+  Исправлено: loop подписывается только на ConnAck, канал sized по числу
+  топиков; тест `crates/orbita-home/tests/mqtt_state.rs` (60 устройств,
+  fake broker) падает на старом коде и проходит на исправленном.
 - Опасные capability — `denied` до появления out-of-band approval;
   `confirm="approved"` из tool call игнорируется. Сцен нет: `scenes=[]`,
   `scene_run` → `denied`.
 - `events` отдаёт изменения MQTT с cursor/epoch и дедупликацией; значимые
   переходы (leak/frost/door/motion/mode) — фаза 6.
 - Оффлайн-проверка (L2): `cargo test -p orbita-home -p orbita-home-mcp`
-  (19+14), `cargo clippy --workspace --all-targets -- -D warnings`,
+  (20 unit + 1 fake-broker + 15), `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace`, MCP `initialize`/`tools/list`/`health` по HTTP.
   В реальном режиме без брокера health — `degraded`,
   `broker=disconnected`, а `command` возвращает `failed` по ack-таймауту
@@ -290,10 +299,11 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Развёрнуто на стенде 08.11.2026 (L3, без станции).** `orbita-home-mcp`
   на `orbita-hub` `:8897` (юнит из `deploy/systemd`, бинарник собран в
   `/opt/orbita-feat`), `mqtt connected`, `health`: 20 устройств, все
-  `available`. Стендовый `/etc/orbita/home.json` **не заменён**: в нём
-  `meta/error` на уровне контрола (`…/controls/K1/meta/error`, стандарт WB);
-  переход на уровень устройства из `deploy/home/home.json` не проверен на
-  живом брокере (сейчас ни одного `meta/error` нет), бэкап —
+  `available`. Стендовый `/etc/orbita/home.json` **не заменялся** и остаётся
+  per-control (`…/controls/K1/meta/error`, стандарт живого WB); строка
+  `install … home.json` из списка ниже не выполнялась. `deploy/home/home.json`
+  тоже возвращён на per-control; device-level топик добавляется автоматически
+  как fallback (сейчас ни одного `meta/error` в брокере нет). Бэкап —
   `/root/backup-home-mcp-20261108/home.json.prev`.
 - OpenClaw: `mcp.servers.home` (`http://192.168.250.103:8897/mcp`, Bearer как у
   tv/search), hot reload без рестарта; бэкап
@@ -320,7 +330,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
     -p orbita-home-mcp
   install -m 0644 deploy/systemd/orbita-home-mcp.service \
     /etc/systemd/system/orbita-home-mcp.service
-  install -m 0600 deploy/home/home.json /etc/orbita/home.json
+  # Конфиг на стенде оставлен per-control; deploy/home/home.json теперь
+  # совпадает с ним. Переустанавливать только по решению владельца:
+  # install -m 0600 deploy/home/home.json /etc/orbita/home.json
   systemctl daemon-reload
   systemctl enable --now orbita-home-mcp
   systemctl status orbita-home-mcp --no-pager
