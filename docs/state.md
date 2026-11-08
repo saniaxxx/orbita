@@ -45,14 +45,13 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   `tv-adb.py`; 10 MCP-инструментов у агента.
 - **TV-скилл**: «включи мультик …» → VK search/play через ADB, по умолчанию
   детская; питание/громкость через ADB.
-- **Дом**: wb-rules владеет safety/сценами; свет Wiren Board. В ветке
-  `feat/home-mcp` (08.11.2026) у `orbita-home-mcp` появился реальный backend:
-  state cache из MQTT, команды в `…/on`, ack по state-топику (2 с),
-  идемпотентность, policy и audit. Проверено оффлайн (L2): 20 unit +
-  1 fake-broker тест `orbita-home`, 15 тестов `orbita-home-mcp`, живой MCP
-  handshake по HTTP.
-  На стенд не развёрнут и с реальным Wiren Board не проверялся; сцены не
-  настроены и не выдаются. В `main`/`feat/openclaw` не влито.
+- **Дом**: wb-rules владеет safety/сценами; свет Wiren Board. `orbita-home-mcp`
+  (08.11.2026, ветка слита в `main`) — реальный backend: state cache из MQTT,
+  команды в `…/on`, ack по state-топику (2 с), идемпотентность, policy,
+  audit. Оффлайн L2: 20 unit + 1 fake-broker тест `orbita-home`, 15 тестов
+  `orbita-home-mcp`, MCP handshake по HTTP. Развёрнут на `orbita-hub`
+  (L3, без станции): 20/20 устройств `available`, свет из OpenClaw — 3,7 с,
+  `executed`; голосом со станции ещё нет. Сцены не настроены и не выдаются.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
   локальная модель `local/qwen3.5-9b-q4km`, context 32768.
@@ -79,9 +78,8 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   «сделай громче» — `sound_louder`. Живая станция — проверка владельца.
 - Telegram не подключён: нет токена бота и chat id. «Напомни в телеграм»
   честно отвечает «Телеграм пока не подключён, напомню здесь».
-- Нет каналов mobile/web. home-MCP на реальном Wiren Board ещё не развёрнут:
-  код готов в `feat/home-mcp`, нужен перенос на CT101 и проверка владельцем
-  (L3); свет через адаптер/OpenClaw пока не ходит.
+- Нет каналов mobile/web. home-MCP развёрнут на `orbita-hub` (L3) и ходит
+  через OpenClaw; голосовой проверки со станции ещё нет, нужен владелец.
 - LLM вызывает только OpenClaw (станция и адаптер LLM не используют).
   Очередь к одному слоту llama — только между ходами самого OpenClaw:
   Telegram, фоновые `agentTurn`, heartbeat каждые 30 мин, ночной
