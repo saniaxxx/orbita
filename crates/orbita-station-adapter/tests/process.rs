@@ -703,3 +703,41 @@ async fn openclaw_streaming_parses_sse_with_client_tools() {
     assert_eq!(tool_message["role"], "tool");
     assert_eq!(tool_message["tool_call_id"], "call_1");
 }
+
+#[tokio::test]
+async fn a_closing_question_keeps_the_dialog_open_for_the_answer() {
+    let core = Arc::new(FakeCore::default());
+    *core.reply.lock().unwrap() = Some(CoreTurn {
+        text: "Жил-был кот. Хочешь ещё сказку?".into(),
+        actions: Vec::new(),
+    });
+    let url = serve(core.clone()).await;
+    let (mut socket, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
+    let mut replies = Vec::new();
+    for text in ["расскажи сказку", "да, давай"] {
+        let message = json!({"type": "process", "data": {
+            "metadata": {"internal": {"deviceId": "duid-kids"}}, "text": text,
+        }});
+        socket
+            .send(Message::Text(message.to_string().into()))
+            .await
+            .unwrap();
+        let reply = loop {
+            let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+                .await
+                .expect("adapter reply timeout")
+                .expect("adapter closed the socket")
+                .expect("websocket error");
+            if let Message::Text(text) = message {
+                break serde_json::from_str::<Value>(text.as_str()).unwrap();
+            }
+        };
+        replies.push(reply);
+    }
+    assert_eq!(replies[0]["data"]["shouldListen"], true);
+    assert_eq!(replies[1]["data"]["finished"], true);
+    // The answer reached the core on the same processor connection.
+    let events = core.events.lock().unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[1].text, "да, давай");
+}

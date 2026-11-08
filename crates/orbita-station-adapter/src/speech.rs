@@ -68,6 +68,15 @@ pub fn remainder<'a>(full: &'a str, first: &str) -> Option<&'a str> {
     full.trim().strip_prefix(first.trim()).map(str::trim)
 }
 
+/// The reply ends with a question, so the station should listen for the
+/// answer ("Хочешь ещё сказку?").
+pub fn asks(text: &str) -> bool {
+    text.trim_end_matches(|char: char| {
+        char.is_whitespace() || matches!(char, '"' | '»' | ')' | '*')
+    })
+    .ends_with('?')
+}
+
 /// Strip markup a small model still emits despite the voice instructions;
 /// TTS would read it out or stumble on it.
 pub fn spoken(text: &str) -> String {
@@ -136,6 +145,14 @@ mod tests {
         );
         assert_eq!(remainder("Только одно.", "Только одно."), Some(""));
         assert_eq!(remainder("Другой текст.", "Первое."), None);
+    }
+
+    #[test]
+    fn a_closing_question_keeps_listening() {
+        assert!(asks("Жили-были кот и пёс. Хочешь ещё сказку?"));
+        assert!(asks("Включить свет в детской?» "));
+        assert!(!asks("Почему небо голубое? Из-за рассеяния света."));
+        assert!(!asks("Свет в кладовке включён."));
     }
 
     #[test]

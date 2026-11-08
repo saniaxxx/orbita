@@ -27,7 +27,7 @@ use orbita_proto::n_alice::n_alice_api::{
 use crate::{
     protocol::{
         audio_frame, audio_stream_id, decode_server, encode_client, is_aapi, response_text,
-        stream_close, text_input, voice_input,
+        semantic_frame_callback, stream_close, text_input, voice_input,
     },
     record::Recorder,
 };
@@ -82,7 +82,15 @@ pub async fn run_recorded_session(
         recorder.as_mut(),
     )
     .await?;
-    receive_loop(socket, started, audio_dir, timeout, recorder.as_mut()).await
+    receive_loop(
+        socket,
+        &dialog_id,
+        started,
+        audio_dir,
+        timeout,
+        recorder.as_mut(),
+    )
+    .await
 }
 
 pub async fn run_voice_session(
@@ -146,7 +154,15 @@ pub async fn run_recorded_voice_session(
         tokio::time::sleep(Duration::from_millis(drain_ms)).await;
     }
     send(&mut socket, &stream_close(stream_id), recorder.as_mut()).await?;
-    receive_loop(socket, started, audio_dir, timeout, recorder.as_mut()).await
+    receive_loop(
+        socket,
+        &dialog_id,
+        started,
+        audio_dir,
+        timeout,
+        recorder.as_mut(),
+    )
+    .await
 }
 
 pub(crate) async fn connect(
@@ -220,6 +236,7 @@ async fn receive_loop(
     mut socket: tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
+    dialog_id: &str,
     started: Instant,
     audio_dir: Option<&Path>,
     timeout: Duration,
@@ -228,8 +245,14 @@ async fn receive_loop(
     let mut report = SessionReport::default();
     let mut audio: HashMap<u32, Vec<u8>> = HashMap::new();
     let deadline = Instant::now() + timeout;
+    // Semantic frames to echo back, as the real station does.
+    let mut callbacks = Vec::new();
 
     loop {
+        for callback in callbacks.drain(..) {
+            println!("CONTINUE: echoing @@mm_semantic_frame");
+            send(&mut socket, &callback, recorder.as_deref_mut()).await?;
+        }
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
             tracing::warn!("simulator timeout");
@@ -270,6 +293,11 @@ async fn receive_loop(
                                                 .iter()
                                                 .map(|directive| directive.name.clone()),
                                         );
+                                        callbacks.extend(body.directives.iter().filter_map(
+                                            |directive| {
+                                                semantic_frame_callback(directive, dialog_id)
+                                            },
+                                        ));
                                     }
                                     if let Some(text) = response_text(&response) {
                                         println!("ALICE: {text}");
@@ -299,6 +327,9 @@ async fn receive_loop(
                                     }
                                 }
                                 Some(ServerEventKind::Push(push)) => {
+                                    callbacks.extend(push.directives.iter().filter_map(
+                                        |directive| semantic_frame_callback(directive, dialog_id),
+                                    ));
                                     report.pushes += 1;
                                     report.directives.extend(
                                         push.directives

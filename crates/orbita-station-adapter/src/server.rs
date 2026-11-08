@@ -215,6 +215,9 @@ pub struct TurnResult {
     pub route: &'static str,
     /// When the first sentence went out early, its latency in ms.
     pub first_part_ms: Option<u64>,
+    /// The reply ends with a question: the station keeps the dialog open and
+    /// listens for the answer.
+    pub should_listen: bool,
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
@@ -276,13 +279,18 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                         "directives": result.directives,
                         "text": result.text,
                         "finished": true,
-                        "shouldListen": false,
+                        "shouldListen": result.should_listen,
                     }
                 });
                 let _ = socket
                     .send(Message::Text(response.to_string().into()))
                     .await;
-                // quasar opens a fresh processor connection per utterance.
+                if result.should_listen {
+                    // quasar keeps this processor session for the answer
+                    // and sends the next `process` on the same connection.
+                    continue;
+                }
+                // Otherwise quasar opens a fresh connection per utterance.
                 let _ = socket.send(Message::Close(None)).await;
                 return;
             }
@@ -308,6 +316,7 @@ pub async fn handle_turn(
             directives: Vec::new(),
             route: "invalid",
             first_part_ms: None,
+            should_listen: false,
         };
     }
     if event.text.is_empty() {
@@ -318,6 +327,7 @@ pub async fn handle_turn(
             directives: Vec::new(),
             route: "empty",
             first_part_ms: None,
+            should_listen: false,
         };
         log_turn(&event, &result, started);
         return result;
@@ -332,6 +342,7 @@ pub async fn handle_turn(
                 directives: render(functions, &[intent_action(&intent)]),
                 route: "intent",
                 first_part_ms: None,
+                should_listen: false,
             };
             log_turn(&event, &result, started);
             return result;
@@ -362,6 +373,7 @@ pub async fn handle_turn(
                         directives,
                         route: "core",
                         first_part_ms: Some(*ms),
+                        should_listen: speech::asks(&turn.text),
                     }
                 }
                 None => {
@@ -372,6 +384,7 @@ pub async fn handle_turn(
                         text
                     };
                     TurnResult {
+                        should_listen: speech::asks(&text),
                         text,
                         directives,
                         route: "core",
@@ -393,6 +406,7 @@ pub async fn handle_turn(
                 directives: Vec::new(),
                 route: "core_error",
                 first_part_ms: first.map(|(_, ms)| ms),
+                should_listen: false,
             }
         }
     };
@@ -463,6 +477,7 @@ async fn commitment_turn(
                     directives: render(functions, &[intent_action(&intent)]),
                     route: "intent",
                     first_part_ms: None,
+                    should_listen: false,
                 });
             };
             let duration = orbita_intents::russian::duration_phrase(seconds);
@@ -500,6 +515,7 @@ async fn commitment_turn(
                 directives: Vec::new(),
                 route: "schedule",
                 first_part_ms: None,
+                should_listen: false,
             }
         }
         Err(error) => {
@@ -509,6 +525,7 @@ async fn commitment_turn(
                 directives: Vec::new(),
                 route: "schedule_error",
                 first_part_ms: None,
+                should_listen: false,
             }
         }
     })
@@ -535,6 +552,7 @@ fn log_turn(event: &InboundEvent, result: &TurnResult, started: Instant) {
         ms = started.elapsed().as_millis() as u64,
         directives = result.directives.len(),
         first_part_ms = result.first_part_ms,
+        should_listen = result.should_listen,
         text = %event.text,
         reply = %result.text,
         "turn"

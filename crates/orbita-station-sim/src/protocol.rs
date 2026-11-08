@@ -3,8 +3,10 @@
 use orbita_proto::n_alice::{
     EEventType, TAliceRequestProto, TEvent as AliceEvent,
     n_alice_api::{
-        TAliceResponseProto, TClientMessage, TEventHeader, TServerMessage, TStreamControl,
+        TAliceResponseProto, TClientMessage, TDirective, TEventHeader, TServerMessage,
+        TStreamControl,
         t_client_message::{Message as ClientMessage, TEvent as ClientEvent, t_event::Event},
+        t_directive::PayloadType as DirectivePayload,
         t_server_message::{Message as ServerMessage, TEvent as ServerEvent},
         t_stream_control::{Action as StreamAction, TActionClose, t_action_close::EReason},
     },
@@ -12,6 +14,7 @@ use orbita_proto::n_alice::{
         THeader, TRequest,
         t_request::{DeviceStateType, EnvironmentStateType},
     },
+    t_event::PayloadType as EventPayload,
 };
 use prost::Message as ProstMessage;
 
@@ -51,6 +54,35 @@ pub fn text_input(text: &str, dialog_id: &str) -> TClientMessage {
             })),
         })),
     }
+}
+
+/// The station echoes a `@@mm_semantic_frame` server action back as a
+/// request; quasar's "continue" handshake (stage 1 → stage 2 → next partial
+/// response) depends on it. `None` for any other directive.
+pub fn semantic_frame_callback(directive: &TDirective, dialog_id: &str) -> Option<TClientMessage> {
+    if directive.name != "@@mm_semantic_frame" {
+        return None;
+    }
+    let payload = match directive.payload_type.clone()? {
+        DirectivePayload::Payload(payload) => EventPayload::Payload(payload),
+        DirectivePayload::PayloadRaw(raw) => EventPayload::PayloadRaw(raw),
+    };
+    let mut message = text_input("", dialog_id);
+    if let Some(ClientMessage::Event(ClientEvent {
+        event: Some(Event::TextInput(request)),
+        ..
+    })) = message.message.as_mut()
+        && let Some(event) = request
+            .request
+            .as_mut()
+            .and_then(|request| request.event.as_mut())
+    {
+        event.r#type = Some(EEventType::ServerAction as i32);
+        event.text = None;
+        event.name = Some(directive.name.clone());
+        event.payload_type = Some(payload);
+    }
+    Some(message)
 }
 
 pub fn voice_input(dialog_id: &str, stream_id: i64) -> TClientMessage {
@@ -154,5 +186,42 @@ pub fn server_event(message: &TServerMessage) -> Option<&ServerEvent> {
     match message.message.as_ref()? {
         ServerMessage::Event(event) => Some(event),
         ServerMessage::StreamControl(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_frames_are_echoed_as_server_actions() {
+        let directive = TDirective {
+            name: "@@mm_semantic_frame".into(),
+            r#type: "server_action".into(),
+            payload_type: Some(DirectivePayload::Payload(Default::default())),
+            ..Default::default()
+        };
+        let message = semantic_frame_callback(&directive, "dialog-1").expect("echo");
+        let Some(ClientMessage::Event(ClientEvent {
+            event: Some(Event::TextInput(request)),
+            ..
+        })) = message.message
+        else {
+            panic!("not a TextInput event");
+        };
+        assert_eq!(
+            request.header.unwrap().dialog_id.as_deref(),
+            Some("dialog-1")
+        );
+        let event = request.request.unwrap().event.unwrap();
+        assert_eq!(event.r#type, Some(EEventType::ServerAction as i32));
+        assert_eq!(event.name.as_deref(), Some("@@mm_semantic_frame"));
+        assert!(matches!(event.payload_type, Some(EventPayload::Payload(_))));
+
+        let other = TDirective {
+            name: "tts_play_placeholder".into(),
+            ..Default::default()
+        };
+        assert!(semantic_frame_callback(&other, "dialog-1").is_none());
     }
 }
