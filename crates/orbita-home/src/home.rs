@@ -135,9 +135,9 @@ impl Home {
 
         for device in &config.devices {
             states.insert(device.id.clone(), DeviceState::default());
-            if let Some(topic) = &device.meta_error_topic {
+            for topic in error_topics_for(device) {
                 error_topics
-                    .entry(topic.clone())
+                    .entry(topic)
                     .or_insert_with(Vec::new)
                     .push(device.id.clone());
             }
@@ -390,6 +390,25 @@ pub fn action(device_id: &str, capability: &str, action: Action) -> ActionReques
     ActionRequest::new(device_id, capability, action)
 }
 
+/// `meta/error` topics for a device. Wiren Board publishes availability
+/// either per control (`/devices/<dev>/controls/<control>/meta/error`) or per
+/// device (`/devices/<dev>/meta/error`). When the configured topic is
+/// control-level, subscribe to the device-level topic as well; the configured
+/// topic alone is enough otherwise.
+fn error_topics_for(device: &DeviceConfig) -> Vec<String> {
+    let Some(topic) = &device.meta_error_topic else {
+        return Vec::new();
+    };
+    let mut topics = vec![topic.clone()];
+    if let Some((base, _)) = topic.split_once("/controls/") {
+        let device_topic = format!("{base}/meta/error");
+        if !topics.contains(&device_topic) {
+            topics.push(device_topic);
+        }
+    }
+    topics
+}
+
 /// All MQTT topics that carry device state or availability.
 pub fn subscriptions_for(config: &HomeConfig) -> Vec<String> {
     let mut topics: Vec<String> = config
@@ -400,7 +419,7 @@ pub fn subscriptions_for(config: &HomeConfig) -> Vec<String> {
                 .capabilities
                 .iter()
                 .filter_map(|capability| capability.state_topic.clone())
-                .chain(device.meta_error_topic.clone())
+                .chain(error_topics_for(device))
         })
         .collect();
     topics.sort();
@@ -655,5 +674,33 @@ mod tests {
         assert!(view.stale);
         home.ingest("/devices/wb/meta/error", b"");
         assert!(!home.get("light").unwrap().stale);
+    }
+
+    #[test]
+    fn control_level_error_also_subscribes_to_the_device_topic() {
+        let mut config = config(Risk::Safe, 60);
+        config.devices[0].meta_error_topic =
+            Some("/devices/wb/controls/on_off/meta/error".to_owned());
+        let subscriptions = subscriptions_for(&config);
+        assert!(
+            subscriptions.contains(&"/devices/wb/controls/on_off/meta/error".to_owned()),
+            "{subscriptions:?}"
+        );
+        assert!(
+            subscriptions.contains(&"/devices/wb/meta/error".to_owned()),
+            "{subscriptions:?}"
+        );
+
+        let home = Home::new(
+            Arc::new(config),
+            Arc::new(FakePublisher::default()),
+            Arc::new(FakeClock::new()),
+        )
+        .unwrap();
+        home.ingest("/devices/wb/meta/error", b"device");
+        assert_eq!(home.get("light").unwrap().error.as_deref(), Some("device"));
+        home.ingest("/devices/wb/meta/error", b"");
+        home.ingest("/devices/wb/controls/on_off/meta/error", b"control");
+        assert_eq!(home.get("light").unwrap().error.as_deref(), Some("control"));
     }
 }

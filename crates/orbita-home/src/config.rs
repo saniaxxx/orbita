@@ -185,19 +185,27 @@ mod tests {
     }
 
     #[test]
-    fn stand_config_is_valid_and_uses_device_level_errors() {
+    fn stand_config_error_topics_cover_both_wiren_board_levels() {
         let path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../deploy/home/home.json");
         let config = HomeConfig::from_path(path).expect("deploy/home/home.json");
+        let subscriptions = crate::home::subscriptions_for(&config);
         for device in &config.devices {
             let topic = device
                 .meta_error_topic
                 .as_deref()
                 .expect("meta error topic");
             assert!(
-                !topic.contains("/controls/"),
-                "{topic} is a control topic, not a Wiren Board meta/error topic"
+                subscriptions.iter().any(|item| item == topic),
+                "{topic} is not subscribed"
             );
+            if let Some((base, _)) = topic.split_once("/controls/") {
+                let device_topic = format!("{base}/meta/error");
+                assert!(
+                    subscriptions.iter().any(|item| item == &device_topic),
+                    "{device_topic} fallback is not subscribed for {topic}"
+                );
+            }
         }
     }
 }
