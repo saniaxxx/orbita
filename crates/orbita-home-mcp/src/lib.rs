@@ -187,12 +187,23 @@ pub struct StateParams {
 pub struct CommandParams {
     pub device_id: String,
     pub capability: String,
+    /// `true`/`false` for on_off, a number for brightness, a string for enums.
+    #[schemars(schema_with = "command_value_schema")]
     pub value: Value,
     /// Idempotency key from the core.
     pub request_id: String,
     /// Reserved for out-of-band approval. Dangerous capabilities are denied
     /// regardless of this value until the approval channel exists.
     pub confirm: Option<String>,
+}
+
+/// MCP clients (OpenClaw's zod validator) reject the bare `true` schema that
+/// schemars emits for `serde_json::Value`; spell out the accepted types.
+fn command_value_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "description": "Новое значение: true/false для on_off, число для brightness, строка для enum.",
+        "type": ["boolean", "number", "string"]
+    })
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
@@ -420,6 +431,27 @@ async fn http_health() -> Json<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_input_properties_are_object_schemas() {
+        // OpenClaw refuses a server whose tool property schema is a bare
+        // boolean (`"value": true`), so every property must be an object.
+        for tool in HomeServer::tool_router().list_all() {
+            let properties = tool
+                .input_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            for (name, schema) in properties {
+                assert!(
+                    schema.is_object(),
+                    "{}.{name} schema is {schema}",
+                    tool.name
+                );
+            }
+        }
+    }
 
     fn command(device_id: &str, value: Value, request_id: &str) -> CommandParams {
         CommandParams {
