@@ -44,8 +44,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Дом**: wb-rules владеет safety/сценами; свет Wiren Board. В ветке
   `feat/home-mcp` (08.11.2026) у `orbita-home-mcp` появился реальный backend:
   state cache из MQTT, команды в `…/on`, ack по state-топику (2 с),
-  идемпотентность, policy и audit. Проверено оффлайн (L2): 20 тестов
-  `orbita-home`, 15 тестов `orbita-home-mcp`, живой MCP handshake по HTTP.
+  идемпотентность, policy и audit. Проверено оффлайн (L2): 20 unit +
+  1 fake-broker тест `orbita-home`, 15 тестов `orbita-home-mcp`, живой MCP
+  handshake по HTTP.
   На стенд не развёрнут и с реальным Wiren Board не проверялся; сцены не
   настроены и не выдаются. В `main`/`feat/openclaw` не влито.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
@@ -98,7 +99,7 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - `crates/orbita-home` — `Home` (кэш, validate, risk/Grant, rate limit,
   retain=false), `mqtt::start[_with_status]`, broadcast изменений по state и
   `meta/error`, `matches_value` для ack (bool и числа как `f64`), отдельные
-  `stale` (возраст) и `available` (есть значение, нет error); 20 тестов.
+  `stale` (возраст) и `available` (есть значение, нет error); 20 unit + 1 fake-broker тест.
 - `crates/orbita-home-mcp` — MCP-фасад: backend на MQTT Wiren Board
   (`HOME_MCP_SIMULATED=0`) и fake для shadow; devices/state/command/scenes/
   scene_run/events/health, policy (dangerous deny by default), idempotency,
@@ -165,13 +166,18 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   настроенный топик и, если он control-level, дополнительно на
   `/devices/wb-…/meta/error`. `deploy/home/home.json` остаётся per-control,
   device-level — fallback.
+- Регрессия: 51 topic при request channel 100 и подписке до старта loop +
+  на ConnAck блокировали event loop — state не приходил (`available=0`).
+  Исправлено: loop подписывается только на ConnAck, канал sized по числу
+  топиков; тест `crates/orbita-home/tests/mqtt_state.rs` (60 устройств,
+  fake broker) падает на старом коде и проходит на исправленном.
 - Опасные capability — `denied` до появления out-of-band approval;
   `confirm="approved"` из tool call игнорируется. Сцен нет: `scenes=[]`,
   `scene_run` → `denied`.
 - `events` отдаёт изменения MQTT с cursor/epoch и дедупликацией; значимые
   переходы (leak/frost/door/motion/mode) — фаза 6.
 - Оффлайн-проверка (L2): `cargo test -p orbita-home -p orbita-home-mcp`
-  (20+15), `cargo clippy --workspace --all-targets -- -D warnings`,
+  (20 unit + 1 fake-broker + 15), `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace`, MCP `initialize`/`tools/list`/`health` по HTTP.
   В реальном режиме без брокера health — `degraded`,
   `broker=disconnected`, а `command` возвращает `failed` по ack-таймауту

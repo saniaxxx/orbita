@@ -95,9 +95,15 @@ pub async fn start_with_status(
     if let Some(username) = &config.mqtt.username {
         options.set_credentials(username, config.mqtt.password.clone().unwrap_or_default());
     }
-    let (client, eventloop) = AsyncClient::new(options, 100);
 
     let topics = crate::home::subscriptions_for(&config);
+    // The event loop subscribes on every ConnAck and is also the only
+    // consumer of the request channel. Size the channel for the whole topic
+    // list, otherwise a large home blocks inside the ConnAck handler while
+    // queueing subscriptions and never polls incoming state.
+    let capacity = topics.len().max(100) + 16;
+    let (client, eventloop) = AsyncClient::new(options, capacity);
+
     let status = Arc::new(MqttStatus::default());
     let publisher = Arc::new(MqttPublisher {
         client,
@@ -106,7 +112,9 @@ pub async fn start_with_status(
     });
     let home = Home::new(config, publisher.clone(), clock)?;
 
-    publisher.subscribe_all().await?;
+    // Do not subscribe before the loop starts: the ConnAck handler already
+    // does, and an extra round would double the queued requests on the first
+    // connection.
     let loop_home = Arc::clone(&home);
     tokio::spawn(async move {
         run_event_loop(eventloop, loop_home, publisher).await;
