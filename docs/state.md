@@ -18,8 +18,9 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 | Где | Адрес | Что |
 |---|---|---|
 | pve3 | `192.168.250.221` | Proxmox VE |
-| CT 100 `alice` | `192.168.250.102` | GPU: llama.cpp, GigaAM, Vosk TTS |
-| CT 101 `orbita` | `192.168.250.103` | quasar, orbita-agent, mcp-search, orbita-tv, dashboard, https-proxy, SearXNG |
+| CT 100 `orbita-ai` | `192.168.250.102` | GPU/AI: llama.cpp, GigaAM, Vosk TTS |
+| CT 101 `orbita-hub` | `192.168.250.103` | interfaces/integrations: quasar, orbita-agent, mcp-search, orbita-tv, dashboard, https-proxy, SearXNG |
+| CT 102 `orbita-brain` | `192.168.250.105` | ядро: OpenClaw 2026.11.1, Node 24, gateway `127.0.0.1:18789` |
 | Станция | `192.168.250.115` | домены Яндекса в `/etc/hosts` → `.103` |
 | Wiren Board | `192.168.250.110` | MQTT, wb-rules |
 | TCL TV | `192.168.250.109` | Remote v2 |
@@ -40,14 +41,17 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Дом**: wb-rules владеет safety/сценами; свет Wiren Board; `orbita-home`
   читает состояние. MCP-фасада дома пока нет.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
+- **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
+  локальная модель `local/qwen3.5-9b-q4km`, тестовый agent turn прошёл.
+  Каналы/MCP/станция ещё не подключены.
 
 ## 4. Что ещё не сделано
 
-- OpenClaw не развёрнут; POC не начат.
+- OpenClaw установлен, но POC не начат: нет каналов, MCP-подключения и station adapter.
 - Нет `home-MCP` и событий дома через MCP.
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
-- Нет единого контракта `InboundEvent/Reply` в коде.
+- Нет единого контракта `InboundEvent/Reply` в рабочем коде (есть v0-крейт).
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
 
 ## 5. Offline-заготовки
