@@ -110,7 +110,8 @@ impl TvConfig {
                 [device] => Ok(device),
                 [] => Err("нет включённых телевизоров в конфиге".to_owned()),
                 _ => Err(format!(
-                    "телевизоров несколько ({}), укажи какой",
+                    "телевизоров несколько ({}). Повтори вызов с device — комнатой из \
+                     запроса пользователя; спрашивай, только если комнату не назвали",
                     enabled
                         .iter()
                         .map(|device| device.name())
@@ -293,7 +294,9 @@ mod tests {
         assert!(config.resolve(Some("кухня")).is_err());
         let mut config = config;
         config.devices[1].enabled = true;
-        assert!(config.resolve(None).is_err());
+        // The model must retry with the room it heard, not ask the user back.
+        let error = config.resolve(None).unwrap_err();
+        assert!(error.contains("Повтори вызов с device"), "{error}");
     }
 
     #[test]

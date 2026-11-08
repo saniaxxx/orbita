@@ -93,13 +93,15 @@ impl TvServer {
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
 pub struct DeviceParams {
-    /// Телевизор: комната, id или алиас. Можно не указывать, если он один.
+    /// Телевизор: комната из запроса («гостиная», «детская»), id или алиас.
+    /// Без него — только если телевизор один.
     pub device: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
 pub struct PowerParams {
-    /// Телевизор: комната, id или алиас. Можно не указывать, если он один.
+    /// Телевизор: комната из запроса («гостиная», «детская»), id или алиас.
+    /// Без него — только если телевизор один.
     pub device: Option<String>,
     /// true — включить, false — выключить. Не toggle: состояние проверяется.
     pub on: bool,

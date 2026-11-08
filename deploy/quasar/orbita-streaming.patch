@@ -75,13 +75,62 @@
      span?.setAttribute('endReason', 'partial-response-not-finished')
 --- a/src/routers/uniproxy/uniproxy-connection.ts
 +++ b/src/routers/uniproxy/uniproxy-connection.ts
-@@ -991,6 +991,18 @@
+@@ -15,6 +15,9 @@
+ import { AlarmMetadata, InputHandler, InputMetadata, InputResult, TextInput, TimerMetadata } from './input-handler'
+ import { VoiceInputHandler } from './voice-input-handler'
+ 
++// orbita: PROCESSOR_STREAMING_FINAL=false restores the single-response streaming.
++const STREAMING_FINAL_RESPONSE = process.env.PROCESSOR_STREAMING_FINAL !== 'false'
++
+ type TServerMessage = proto.NAlice.NAliceApi.ITServerMessage
+ const TServerMessageClass = proto.NAlice.NAliceApi.TServerMessage
+ 
+@@ -862,7 +865,7 @@
+ 
+   private async sendAliceResponse (text: null | string, directives: RawDirective[],
+     shouldListen: boolean, requestId: string,
+-    referenceMessageId: string, sequenceNumber: number) {
++    referenceMessageId: string, sequenceNumber: number, isStreaming = false) {
+     await this.sendServerMessage({
+       Event: {
+         AliceResponse: {
+@@ -893,7 +896,7 @@
+                 }]
+               : [],
+             Directives: directives,
+-            IsStreaming: false,
++            IsStreaming: isStreaming,
+             Suggest: {
+               Items: []
+             }
+@@ -959,8 +962,10 @@
+     referenceMessageId: string, sequenceNumber: number): Promise<void> {
+     try {
+       const rawDirectives = await this.processWrappedDirectives(result.directives, metadata)
++      // orbita: a streamed reply is announced as IsStreaming; the final
++      // response after the last part carries ShouldListen.
+       await this.sendAliceResponse(result.text, rawDirectives, result.shouldListen,
+-        requestId, referenceMessageId, sequenceNumber)
++        requestId, referenceMessageId, sequenceNumber, result.streaming === true && STREAMING_FINAL_RESPONSE)
+     } catch (error) {
+       this.logger.error('Failed to send AliceResponse in sendInputResult: ', error)
+       this.closeConnection()
+@@ -991,6 +996,27 @@
            this.closeConnection()
          }
        } else {
 +        if (result.streaming) {
 +          const shouldListen = await this.sendStreamingTTS(result.text, referenceMessageId, span)
-+          if (shouldListen) {
++          if (STREAMING_FINAL_RESPONSE) {
++            // The station takes ShouldListen from the final (IsStreaming=false)
++            // response; the first one went out before the end of the reply.
++            await this.sendAliceResponse(null, [], shouldListen, requestId, referenceMessageId, sequenceNumber, false)
++            this.logger.info(`Streamed reply finished, shouldListen=${shouldListen}`)
++            if (shouldListen) {
++              result.dialogFinished = false
++              result.shouldListen = true
++            }
++          } else if (shouldListen) {
 +            // The first AliceResponse went out before the reply was known to
 +            // end with a question; tell the station to listen now.
 +            await this.sendAliceResponse(null, [], true, requestId, referenceMessageId, sequenceNumber)
@@ -94,7 +143,7 @@
          // The station plays one TTS stream per AliceResponse: it stops after
          // the first StreamControl.Close, so several phrase streams only voice
          // the first phrase. Keep one stream until multi-stream playback is
-@@ -1080,6 +1092,83 @@
+@@ -1080,6 +1106,83 @@
      await this.sendRawData(Buffer.concat([Buffer.from('AAPI', 'ascii'), encoded]), true)
    }
  
