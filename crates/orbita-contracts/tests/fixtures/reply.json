@@ -1,0 +1,10 @@
+{
+  "contract_version": 0,
+  "turn_id": "turn-1",
+  "blocks": [
+    {"seq": 0, "text": "Сейчас в Москве ", "final": false},
+    {"seq": 1, "text": "облачно.", "final": true}
+  ],
+  "should_listen": false,
+  "error": null
+}

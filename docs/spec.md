@@ -87,12 +87,12 @@ InboundEvent {
   input_kind,           // voice | text | event | command
   text,                 // после STT
   stt_confidence,
-  device_id, room,
+  device_id, room,      // room: Option, у Telegram комнаты нет
   principal, household,
   session_key,
   locale, timezone,
-  capabilities,         // audio_out, volume, display, directives, media
-  shadow,               // true = только сравнение, без побочных эффектов
+  capabilities,         // audio_out, volume, display, media, actions[]
+  shadow,               // adapter hint; shadow-инстанс обязателен
 }
 
 Reply {
@@ -103,11 +103,13 @@ Reply {
 }
 
 OutboundEvent {
-  target,               // principal | device | room
+  event_id, kind,       // reminder | alert | announce
+  target,               // principal | device | room | household
+  household,
   urgency,              // normal | important | critical
-  text, ttl,
-  require_ack,
-  retry_policy,
+  text,
+  created_at_ms, expires_at_ms,
+  require_ack, retry,
 }
 ```
 
@@ -122,10 +124,12 @@ OutboundEvent {
 - `HomeAction` в Reply отсутствует: дом — только MCP-tool.
 - `OutboundEvent` нужен для напоминаний, событий дома и объявлений.
   Семантика: `target` резолвится в конкретное устройство/комнату с учётом
-  quiet hours; доставка имеет ack/retry/TTL; offline-device не блокирует
-  остальные цели.
+  quiet hours; доставка имеет ack/retry/expires_at; offline-device не
+  блокирует остальные цели.
 - `should_listen` сохраняет поведение станции после ответа.
-- `blocks` — поток, а не массив готового ответа; `final=true` закрывает ход.
+- `Reply` — агрегат для хранения; живой стрим идёт кадрами `ReplyBlock
+  {turn_id, seq, text, final}`. `DeviceAction`, `Cancel` и `OutboundAck` —
+  отдельные v0-сообщения для адаптера.
 - Планировщик OpenClaw эмитит `OutboundEvent`; путь до станции — через
   station-adapter/channel plugin, это отдельный чек-лист POC.
 
@@ -175,17 +179,19 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
 - Для `executed` нужны command-устройства/ack/audit в wb-rules. Это отдельная
   работа; текущий `orbita-home` ходит в MQTT из агента и подлежит замене.
 
-Инструменты:
+Инструменты (MCP-сервер `home` даёт префикс `home_`):
 
-- `home_devices(room?, kind?)`;
-- `home_state(device_id)`;
-- `home_command(device_id, capability, value, request_id)`;
-- `home_scenes()` / `home_scene_run(name)`;
-- `home_events(cursor)`;
-- `home_health()`.
+- `devices(room?, kind?)` — фильтр по комнате принимает падежи;
+- `state(device_id)`;
+- `command(device_id, capability, value, request_id, confirm?)`;
+- `scenes()` / `scene_run(name, request_id?)`;
+- `events(cursor, epoch?, limit?)`;
+- `health()`.
 
-Команда возвращает `accepted | executed | denied | failed` + фактическое
-состояние. Состояние имеет timestamp и `stale`.
+Команда возвращает `executed | simulated | denied | failed | conflict` +
+фактическое состояние. Состояние имеет timestamp и `stale`; `command`
+идемпотентна по `request_id`, но тот же id с другими аргументами даёт
+`conflict`.
 
 ### 5.2. События дома
 
@@ -231,8 +237,10 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
   ядром или tools в ядре; прямые MCP-вызовы мимо ядра запрещены.
 - Shadow — отдельный инстанс ядра с отключёнными cron, планировщиком,
   OutboundEvent и записью в постоянную память. MCP смотрят в dry-run/read-only;
-  state читается из реального home-MCP. Сравниваются tool calls/аргументы, а не
-  только текст. Tee запросов — в quasar или station-адаптере, фиксируется ADR.
+  для home-MCP это отдельный процесс с `HOME_MCP_SIMULATED=1`, а не флаг,
+  который OpenClaw обязан пробросить. State читается из реального home-MCP.
+  Сравниваются tool calls/аргументы, а не только текст. Tee запросов — в
+  quasar или station-адаптере, фиксируется ADR.
 - Два ядра не должны одновременно владеть планировщиком, напоминаниями и push.
 
 ## 9. Требования
@@ -250,8 +258,8 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
 - **FR-17.** MCP-события дома доставляются с фильтрацией и severity; критичные
   дублируются без LLM.
 - **FR-18.** Опасные действия требуют out-of-band подтверждения и аудита.
-- **FR-19.** OutboundEvent доставляет напоминания и объявления во все
-  интерфейсы.
+- **FR-19.** OutboundEvent доставляет напоминания и объявления в выбранный
+  target, а не broadcast во все интерфейсы.
 - **FR-20.** Shadow-режим не выполняет побочных эффектов.
 
 - **NFR-1.** Локальный контур; облако не обязательно.

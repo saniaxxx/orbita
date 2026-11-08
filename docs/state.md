@@ -53,9 +53,10 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 ## 5. Offline-заготовки
 
 - `crates/orbita-contracts` — v0 контракты `InboundEvent/Reply/OutboundEvent`,
-  capabilities, shadow; 4 unit-теста.
+  `ReplyBlock/DeviceAction/Cancel/OutboundAck`, actions-capabilities, golden
+  JSON; 6 unit + 2 golden теста.
 - `crates/orbita-home-mcp` — MCP-фасад с fake-backend: devices/state/command/
-  scenes/events/health, policy и idempotency; 4 unit-теста.
+  scenes/events/health, policy, idempotency, epoch курсора; 7 тестов.
 - Station adapter и streaming пока не реализованы; им нужен контракт v0
   после POC и симулятор.
 
