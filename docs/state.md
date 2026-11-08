@@ -43,15 +43,20 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
   локальная модель `local/qwen3.5-9b-q4km`, тестовый agent turn прошёл.
-  Каналы/MCP/станция ещё не подключены.
-  **Ограничение POC:** OpenClaw использует тот же `llama.service` с `-np 1` и
-  глобальной JSON-грамматикой, что и станция. Ходы OpenClaw и голос стоят в
-  одной очереди, tool calls могут конфликтовать с GBNF. До D-21 запускать POC
-  только когда станция простаивает.
+  MCP search/TV подключены через SSH-туннель `18899/18898`; probe видит
+  1 и 9 инструментов.
+  **D-21 выполнено частично:** глобальная GBNF убрана из `llama.service`,
+  legacy-агент шлёт `grammar` в запросе. Слот по-прежнему `-np 1`, поэтому
+  OpenClaw и голос делят очередь; POC запускать при простое станции.
+  Tool call через `openclaw agent` пока не сработал (модель/approval), сам MCP
+  доступен.
 
 ## 4. Что ещё не сделано
 
-- OpenClaw установлен, но POC не начат: нет каналов, MCP-подключения и station adapter.
+- OpenClaw установлен, MCP search/TV подключены; нет каналов, station adapter и
+  рабочего tool-call через агентскую модель. Один слот llama.
+- Полный workspace clippy/test не завершён из-за зависания сборки `orbita-proto`
+  на этой машине; новые крейты проверены отдельно.
 - Нет `home-MCP` и событий дома через MCP.
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
