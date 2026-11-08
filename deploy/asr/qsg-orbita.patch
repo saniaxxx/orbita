@@ -1,0 +1,126 @@
+diff --git a/asr_core/processors/vad_processor.py b/asr_core/processors/vad_processor.py
+index 3407e8a..75658cd 100644
+--- a/asr_core/processors/vad_processor.py
++++ b/asr_core/processors/vad_processor.py
+@@ -10,6 +10,16 @@ from typing import Any, List, Literal, Optional, Tuple, overload
+ 
+ import numpy as np
+ 
++ENERGY_GATE_RATIO = float(os.environ.get("VAD_ENERGY_GATE_RATIO", "0"))
++# Raw int16 RMS after INPUT_GAIN; 900 is tuned for the station gain=30.
++ENERGY_GATE_MAX_RMS = float(os.environ.get("VAD_ENERGY_GATE_MAX_RMS", "900"))
++ENERGY_GATE_DEBUG = os.environ.get("VAD_ENERGY_GATE_DEBUG", "0").lower() in {
++    "1",
++    "true",
++    "yes",
++    "on",
++}
++
+ from asr_core.utils.dsp import resample_int16
+ from asr_core.utils.log import fw_log
+ 
+@@ -410,6 +420,7 @@ class StreamingVADBuffer:
+         # Track last processed segment to detect silence gaps
+         self.last_voice_segment_end = 0  # Sample position of last voice segment
+         self.recent_silence_gap_ms = 0.0  # Duration of recent silence gap
++        self.peak_segment_rms = 0.0  # orbita: loudest kept segment
+ 
+         # Initialize VAD
+         TenVAD.initialize(sample_rate)
+@@ -475,6 +486,33 @@ class StreamingVADBuffer:
+             _detector=self.detector,
+         )
+ 
++        # orbita: energy gate. The station mic is quiet and gets heavy gain,
++        # so ten_vad also marks amplified room noise as speech and the
++        # end-of-utterance silence never comes. Drop segments much quieter
++        # than the loudest speech of this utterance.
++        if ENERGY_GATE_RATIO > 0 and voice_segments:
++            kept = []
++            for segment in voice_segments:
++                samples = segment.audio_data.astype(np.float32)
++                rms = float(np.sqrt(np.mean(samples * samples))) if samples.size else 0.0
++                threshold = min(
++                    self.peak_segment_rms * ENERGY_GATE_RATIO,
++                    ENERGY_GATE_MAX_RMS,
++                )
++                keep = rms >= threshold
++                if ENERGY_GATE_DEBUG:
++                    fw_log(
++                        "vad_energy_gate",
++                        rms=round(rms, 1),
++                        peak=round(self.peak_segment_rms, 1),
++                        threshold=round(threshold, 1),
++                        keep=keep,
++                    )
++                if keep:
++                    kept.append(segment)
++                    self.peak_segment_rms = max(self.peak_segment_rms, rms)
++            voice_segments = kept
++
+         # Calculate silence gap before first voice segment
+         if voice_segments:
+             first_voice_start = (
+@@ -564,6 +602,7 @@ class StreamingVADBuffer:
+         self.accumulated_voice_audio.clear()
+         self.voice_segments.clear()
+         self.recent_silence_gap_ms = 0.0
++        self.peak_segment_rms = 0.0
+ 
+         fw_log(
+             "vad_accumulated_audio_cleared",
+@@ -579,6 +618,7 @@ class StreamingVADBuffer:
+         self.total_samples_processed = 0
+         self.last_voice_segment_end = 0
+         self.recent_silence_gap_ms = 0.0
++        self.peak_segment_rms = 0.0
+ 
+ 
+ def _float_env(name: str, default: float) -> float:
+diff --git a/quasistreaming-server.py b/quasistreaming-server.py
+index 097650e..34ef999 100644
+--- a/quasistreaming-server.py
++++ b/quasistreaming-server.py
+@@ -22,6 +22,10 @@ HOST = "0.0.0.0"
+ PORT = int(os.environ.get("PORT", "8080"))
+ 
+ INPUT_GAIN = float(os.environ.get("INPUT_GAIN", "1"))
++# The streaming path already applies INPUT_GAIN. A second gain here would
++# feed GigaAM values far outside [-1, 1]; keep it separately tunable and
++# default to no second application.
++RECOGNIZE_GAIN = float(os.environ.get("RECOGNIZE_GAIN", "1"))
+ VAD_THRESHOLD = float(os.environ.get("VAD_THRESHOLD", "0.3"))
+ VAD_MIN_SILENCE_DURATION = float(os.environ.get("VAD_MIN_SILENCE_DURATION", "0.8"))
+ VAD_MIN_SPEECH_DURATION = float(os.environ.get("VAD_MIN_SPEECH_DURATION", "1.5"))
+@@ -87,7 +91,7 @@ async def recognize_audio(
+     if recognizer is None:
+         raise RuntimeError("GigaAM recognizer is not initialized")
+ 
+-    samples = (audio_pcm16.astype(np.float32) / 32768.0) * INPUT_GAIN
++    samples = (audio_pcm16.astype(np.float32) / 32768.0) * RECOGNIZE_GAIN
+     if samples.size == 0:
+         return []
+ 
+@@ -136,6 +140,8 @@ async def transcribe(websocket: websockets.ServerConnection) -> None:
+                     continue
+ 
+                 samples = np.array(array.array("h", message), dtype=np.int16)
++                if INPUT_GAIN != 1:  # orbita: gain for streaming path
++                    samples = np.clip(samples.astype(np.float32) * INPUT_GAIN, -32768, 32767).astype(np.int16)
+                 overall_buffer.append(samples.copy())
+                 events = await session.add_audio(samples)
+                 if not await send_transcript_events(websocket, events):
+@@ -235,7 +241,12 @@ async def main() -> None:
+         loop.create_task(_windows_cancel(stop))
+ 
+     async with websockets.serve(transcribe, HOST, PORT):
+-        logging.info("started on :%d", PORT)
++        logging.info(
++            "started on :%d (INPUT_GAIN=%s RECOGNIZE_GAIN=%s)",
++            PORT,
++            INPUT_GAIN,
++            RECOGNIZE_GAIN,
++        )
+         await stop.wait()
+ 
+ 
