@@ -77,10 +77,16 @@ Backup on CT100: `/root/backup-qsg-eou-20261108/`.
   final 2.59 s; long phrase final 7.17 s with full text; pause phrase final
   3.84 s with full text; every final `reason=eou_silence`. `llama` stayed
   active, no new restarts.
-- **Voice through the simulator (Vosk TTS → Ogg → quasar):** ASR returned
-  `end_of_utt=true` and the full text. The response path (`@@mm_semantic_frame`
-  only, no adapter/LLM call) timed out during the streaming work; that is not
-  an ASR result.
+- **Voice through the simulator (Vosk TTS → Ogg → quasar, warm OpenClaw):**
+  short `Алиса, ты кто?` first audio 1.5 s on the second (warm) turn; long
+  phrase 5.5 s (first audio 4.6 s); full question 7.7 s; question with a 0.5 s
+  pause after `Алиса` 2.4 s. Each turn returned the full ASR text and an
+  answer. The first empty response was quasar `MAX_WAIT=5 s` and a
+  `continue`/`@@mm_semantic_frame` that `orbita-station-sim` does not handle,
+  not ASR.
+- Edge case: an artificial 1.0 s pause after `Алиса` exceeds the 800 ms EOU
+  and yields `Алиса, какая сейчас`; the comma pause and a 0.5 s pause are
+  intact. That is the 800 ms EOU trade-off, not the energy gate.
 
 Voice recordings under `/tmp/asr-audio` are private and are not copied into
 this repository. Test harness and calibration scripts live only on CT100.
