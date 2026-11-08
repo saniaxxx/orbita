@@ -33,7 +33,10 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - **TTS**: Vosk TTS на CUDA; HTTP и Opus 48 кГц для станции. Уникальная фраза
   ~0,93 с, повтор ~0,2 с.
 - **Станция**: quasar/AAPI, `/process`; `orbita-agent` отвечает, директивы
-  громкости/таймеров работают.
+  громкости/таймеров работают. Голосовой прогон `deploy/verify/run-directives.sh`
+  (фразы синтезированы Vosk TTS, не macOS `say`) — 13/13: громкость
+  louder/quiter/set-level, 3 таймера, напоминание, пустой шаг. Уровень L3:
+  стенд, эмулятор станции, живая станция не задействована (08.11.2026).
 - **TV**: `orbita-tv` MCP, `devices=2`; TCL — Remote v2, Sber — ADB через
   `tv-adb.py`; 10 MCP-инструментов у агента.
 - **TV-скилл**: «включи мультик …» → VK search/play через ADB, по умолчанию
@@ -75,7 +78,27 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - Station adapter и streaming пока не реализованы; им нужен контракт v0
   после POC и симулятор.
 
-## 6. Ближайшие шаги
+## 6. Откат POC (важно)
+
+Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`feat/openclaw`) и
+шлёт grammar per-request; `main` (`0f54562`) ожидает глобальную GBNF. Поэтому
+откат — связанная операция, а не просто `git checkout main`:
+
+1. На `orbita-brain`: `systemctl disable --now openclaw orbita-mcp-tunnel`
+   (если OpenClaw больше не нужен); конфиг OpenClaw —
+   `/home/openclaw/.openclaw/openclaw.json.bak-20261108`.
+2. На `orbita-ai`: вернуть `/root/llama.service.bak-20261108` (глобальная GBNF,
+   32k/q8), `systemctl daemon-reload && systemctl restart llama`, проверить
+   `/v1/models`.
+3. На `orbita-hub`: вернуть бинарник и юнит из
+   `/root/backup-grammar-20261108/`, `daemon-reload && systemctl restart
+   orbita-agent`.
+4. Проверить `/health` агента и `orbita-cli ask "привет"`.
+
+MCP-туннель — временная схема: unit `orbita-mcp-tunnel` enabled и переживает
+рестарт CT, но целевая схема — MCP на приватном IP CT101 с токеном/mTLS.
+
+## 7. Ближайшие шаги
 
 1. Фаза 0: контракты, identity, baseline, ADR LLM/adapter.
 2. LLM serving + общие STT/TTS-шлюзы.
@@ -88,7 +111,7 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 
 Полный план — `docs/plan.md`.
 
-## 6. Проверки
+## 8. Проверки
 
 ```sh
 cargo fmt --all --check

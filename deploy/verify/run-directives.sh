@@ -36,10 +36,14 @@ fi
 
 SCENARIO=${SCENARIO:-$HERE/scenarios/directives.json}
 if [ "${VOICE:-0}" = 1 ]; then
-  if ! command -v say >/dev/null || ! command -v ffmpeg >/dev/null; then
-    echo "VOICE=1 needs macOS say and ffmpeg" >&2
+  if ! command -v curl >/dev/null || ! command -v ffmpeg >/dev/null; then
+    echo "VOICE=1 needs curl and ffmpeg" >&2
     exit 2
   fi
+  # macOS `say` voices are badly recognised by GigaAM (VAD often finds no
+  # speech). Synthesize with the stand TTS instead: same domain as the voice
+  # path, so the harness measures directives, not ASR quality.
+  TTS_URL=${TTS_URL:-http://127.0.0.1:9170}
   workdir=$(mktemp -d /tmp/orbita-verify-voice.XXXXXX)
   trap 'rm -rf "$workdir"' EXIT
   phrases=(
@@ -60,9 +64,16 @@ if [ "${VOICE:-0}" = 1 ]; then
       ffmpeg -y -loglevel error -f lavfi -i anullsrc=r=48000:cl=mono -t 2.0 \
         -c:a libopus -b:a 32k "$file"
     else
-      say -v Milena -o "$workdir/$index.aiff" "${phrases[$index]}"
-      ffmpeg -y -loglevel error -i "$workdir/$index.aiff" -ar 48000 -ac 1 \
-        -af "volume=0.03,apad=pad_dur=2.0" -c:a libopus -b:a 32k "$file"
+      payload=$(jq -cn --arg input "${phrases[$index]}" \
+        '{input: $input, response_format: "wav"}')
+      if ! curl -fsS -m 30 -X POST "$TTS_URL/v1/audio/speech" \
+        -H 'content-type: application/json' -d "$payload" \
+        -o "$workdir/$index.wav"; then
+        echo "TTS synthesis failed for: ${phrases[$index]}" >&2
+        exit 2
+      fi
+      ffmpeg -y -loglevel error -i "$workdir/$index.wav" -ar 48000 -ac 1 \
+        -af "apad=pad_dur=2.0" -c:a libopus -b:a 32k "$file"
     fi
     if [ "$index" -gt 0 ]; then
       steps+=','
@@ -91,6 +102,45 @@ step_text_matches() {
     '.steps[$index].report.text | test($pattern; "i")' "$REPORT" >/dev/null
 }
 
+# Prints "<native_timers> <reminders>" from the agent DB, or nothing.
+db_counts() {
+  local db_dir db_base tmpdir timers reminders
+  if [ -n "$REMOTE_SSH" ]; then
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
+      "pct exec $REMOTE_CT -- command -v sqlite3" >/dev/null 2>&1; then
+      timers=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
+        "pct exec $REMOTE_CT -- sqlite3 $DB \"select count(*) from tasks where kind='native_timer';\"" 2>/dev/null) || return 1
+      reminders=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
+        "pct exec $REMOTE_CT -- sqlite3 $DB \"select count(*) from tasks where kind='reminder';\"" 2>/dev/null) || return 1
+    elif command -v sqlite3 >/dev/null; then
+      db_dir=$(dirname "$DB")
+      db_base=$(basename "$DB")
+      tmpdir=$(mktemp -d)
+      if ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
+        "pct exec $REMOTE_CT -- tar -C $db_dir -czf - ." 2>/dev/null | tar -xz -C "$tmpdir" 2>/dev/null; then
+        timers=$(sqlite3 "$tmpdir/$db_base" "select count(*) from tasks where kind='native_timer';" 2>/dev/null) || { rm -rf "$tmpdir"; return 1; }
+        reminders=$(sqlite3 "$tmpdir/$db_base" "select count(*) from tasks where kind='reminder';" 2>/dev/null) || { rm -rf "$tmpdir"; return 1; }
+        rm -rf "$tmpdir"
+      else
+        rm -rf "$tmpdir"
+        return 1
+      fi
+    else
+      return 1
+    fi
+  else
+    command -v sqlite3 >/dev/null && [ -r "$DB" ] || return 1
+    timers=$(sqlite3 "$DB" "select count(*) from tasks where kind='native_timer';" 2>/dev/null) || return 1
+    reminders=$(sqlite3 "$DB" "select count(*) from tasks where kind='reminder';" 2>/dev/null) || return 1
+  fi
+  printf '%s %s\n' "$timers" "$reminders"
+}
+
+counts_before=$(db_counts) || counts_before=""
+if [ -z "$counts_before" ]; then
+  echo "SKIP  sqlite delta checks (agent DB unavailable)"
+fi
+
 echo "running simulator: $SIM"
 if ! "$SIM" --url "$URL" --duid "$DUID" \
   --replay "$SCENARIO" \
@@ -111,59 +161,36 @@ check has_directive 5 timer_set_directive
 check has_directive 6 timer_set_directive
 check step_text_matches 8 'не расслышала'
 
-sqlite_available=1
-if [ -n "$REMOTE_SSH" ]; then
-  if ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
-    "pct exec $REMOTE_CT -- command -v sqlite3" >/dev/null 2>&1; then
-    timers=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
-      "pct exec $REMOTE_CT -- sqlite3 $DB \"select count(*) from tasks where kind='native_timer';\"" 2>/dev/null || echo 0)
-    reminders=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
-      "pct exec $REMOTE_CT -- sqlite3 $DB \"select count(*) from tasks where kind='reminder';\"" 2>/dev/null || echo 0)
-  elif command -v sqlite3 >/dev/null; then
-    db_dir=$(dirname "$DB")
-    db_base=$(basename "$DB")
-    tmpdir=$(mktemp -d)
-    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
-      "pct exec $REMOTE_CT -- tar -C $db_dir -czf - ." 2>/dev/null | tar -xz -C "$tmpdir" 2>/dev/null; then
-      timers=$(sqlite3 "$tmpdir/$db_base" "select count(*) from tasks where kind='native_timer';" 2>/dev/null || echo 0)
-      reminders=$(sqlite3 "$tmpdir/$db_base" "select count(*) from tasks where kind='reminder';" 2>/dev/null || echo 0)
-      rm -rf "$tmpdir"
-    else
-      rm -rf "$tmpdir"
-      sqlite_available=0
-      echo "SKIP  remote sqlite checks (copy failed)"
-    fi
+if [ -n "$counts_before" ]; then
+  read -r timers_before reminders_before <<<"$counts_before"
+  counts_after=$(db_counts) || counts_after=""
+  if [ -z "$counts_after" ]; then
+    bad "sqlite delta (post-run read failed)"
   else
-    sqlite_available=0
-    echo "SKIP  remote sqlite checks (no local sqlite3)"
+    read -r timers_after reminders_after <<<"$counts_after"
+    new_timers=$((timers_after - timers_before))
+    new_reminders=$((reminders_after - reminders_before))
+    if [ "$new_timers" -ge 3 ]; then
+      ok "sqlite new native_timer >= 3 (got $new_timers)"
+    else
+      bad "sqlite new native_timer >= 3 (got $new_timers)"
+    fi
+    if [ "$new_reminders" -ge 1 ]; then
+      ok "sqlite new reminder >= 1 (got $new_reminders)"
+    else
+      bad "sqlite new reminder >= 1 (got $new_reminders)"
+    fi
   fi
+fi
+
+if [ -n "$REMOTE_SSH" ]; then
   agent_logs=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
     "pct exec $REMOTE_CT -- journalctl -u $AGENT_UNIT --since '$START' --no-pager" 2>/dev/null || true)
   quasar_logs=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_SSH" \
     "pct exec $REMOTE_CT -- journalctl -u $QUASAR_UNIT --since '$START' --no-pager" 2>/dev/null || true)
 else
-  if command -v sqlite3 >/dev/null && [ -r "$DB" ]; then
-    timers=$(sqlite3 "$DB" "select count(*) from tasks where kind='native_timer';" 2>/dev/null || echo 0)
-    reminders=$(sqlite3 "$DB" "select count(*) from tasks where kind='reminder';" 2>/dev/null || echo 0)
-  else
-    sqlite_available=0
-    echo "SKIP  sqlite checks (sqlite3 or $DB unavailable)"
-  fi
   agent_logs=$(journalctl -u "$AGENT_UNIT" --since "$START" --no-pager 2>/dev/null || true)
   quasar_logs=$(journalctl -u "$QUASAR_UNIT" --since "$START" --no-pager 2>/dev/null || true)
-fi
-
-if [ "$sqlite_available" -eq 1 ]; then
-  if [ "${timers:-0}" -ge 3 ] 2>/dev/null; then
-    ok "sqlite native_timer >= 3 (got $timers)"
-  else
-    bad "sqlite native_timer >= 3 (got ${timers:-0})"
-  fi
-  if [ "${reminders:-0}" -ge 1 ] 2>/dev/null; then
-    ok "sqlite reminder >= 1 (got $reminders)"
-  else
-    bad "sqlite reminder >= 1 (got ${reminders:-0})"
-  fi
 fi
 
 if printf '%s\n' "$agent_logs" | grep -q 'prepare functions=18'; then
