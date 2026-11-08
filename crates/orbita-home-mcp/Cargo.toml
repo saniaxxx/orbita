@@ -8,8 +8,10 @@ description = "MCP facade for the home state and wb-rules commands"
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 orbita-core = { path = "../orbita-core" }
+orbita-home = { path = "../orbita-home" }
 orbita-mcp-http = { path = "../orbita-mcp-http" }
 rmcp.workspace = true
 schemars.workspace = true

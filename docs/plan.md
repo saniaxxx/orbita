@@ -74,6 +74,10 @@
 
 ## Фаза 3. home-MCP (6–8 дней)
 
+Статус 08.11.2026: backend на MQTT и MCP-контракт готовы в ветке
+`feat/home-mcp`, оффлайн-проверка L2; развёртывание на `orbita-hub` и
+проверка реальным светом — за владельцем (L3).
+
 - `home-MCP`: state cache, devices, commands, scenes, audit.
 - Backend на MQTT Wiren Board (из `orbita-home`): state cache, команды в
   `…/on`, ack по state-топику, сцены и аудит внутри сервиса; wb-rules не

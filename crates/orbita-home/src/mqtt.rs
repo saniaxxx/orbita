@@ -4,7 +4,10 @@
 //! replayed after a reconnect and can open a gate or toggle a light again.
 //! State and `meta/error` topics are subscribed with QoS1.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -14,9 +17,43 @@ use tracing::{error, info, warn};
 use crate::home::{Clock, Home, Publisher};
 use crate::model::HomeError;
 
+#[derive(Debug, Default)]
+pub struct MqttStatus {
+    connected: AtomicBool,
+    last_error: Mutex<Option<String>>,
+}
+
+impl MqttStatus {
+    pub fn connected(&self) -> bool {
+        self.connected.load(Ordering::SeqCst)
+    }
+
+    pub fn last_error(&self) -> Option<String> {
+        self.last_error
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    fn connected_now(&self) {
+        self.connected.store(true, Ordering::SeqCst);
+        *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    fn note_error(&self, error: impl Into<String>) {
+        *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(error.into());
+    }
+
+    fn disconnected(&self, error: impl Into<String>) {
+        self.connected.store(false, Ordering::SeqCst);
+        self.note_error(error);
+    }
+}
+
 pub struct MqttPublisher {
     client: AsyncClient,
     topics: Vec<String>,
+    status: Arc<MqttStatus>,
 }
 
 impl MqttPublisher {
@@ -37,16 +74,20 @@ impl Publisher for MqttPublisher {
         self.client
             .publish(topic, QoS::AtLeastOnce, retain, payload.to_vec())
             .await
-            .map_err(|error| HomeError::Publish(format!("publish {topic}: {error}")))
+            .map_err(|error| {
+                let message = format!("publish {topic}: {error}");
+                self.status.note_error(message.clone());
+                HomeError::Publish(message)
+            })
     }
 }
 
-/// Connect to the broker, subscribe to the configured state topics and return
-/// the home service. The event loop runs in a background task.
-pub async fn start(
+/// Start the service and keep the broker connection status for health
+/// reporting.
+pub async fn start_with_status(
     config: Arc<crate::config::HomeConfig>,
     clock: Arc<dyn Clock>,
-) -> Result<Arc<Home>, HomeError> {
+) -> Result<(Arc<Home>, Arc<MqttStatus>), HomeError> {
     let (host, port) = parse_url(&config.mqtt.url)?;
     let mut options = MqttOptions::new(&config.mqtt.client_id, host, port);
     options.set_keep_alive(Duration::from_secs(30));
@@ -57,7 +98,12 @@ pub async fn start(
     let (client, eventloop) = AsyncClient::new(options, 100);
 
     let topics = crate::home::subscriptions_for(&config);
-    let publisher = Arc::new(MqttPublisher { client, topics });
+    let status = Arc::new(MqttStatus::default());
+    let publisher = Arc::new(MqttPublisher {
+        client,
+        topics,
+        status: Arc::clone(&status),
+    });
     let home = Home::new(config, publisher.clone(), clock)?;
 
     publisher.subscribe_all().await?;
@@ -65,7 +111,16 @@ pub async fn start(
     tokio::spawn(async move {
         run_event_loop(eventloop, loop_home, publisher).await;
     });
-    Ok(home)
+    Ok((home, status))
+}
+
+/// Connect to the broker, subscribe to the configured state topics and return
+/// the home service. The event loop runs in a background task.
+pub async fn start(
+    config: Arc<crate::config::HomeConfig>,
+    clock: Arc<dyn Clock>,
+) -> Result<Arc<Home>, HomeError> {
+    start_with_status(config, clock).await.map(|(home, _)| home)
 }
 
 async fn run_event_loop(mut eventloop: EventLoop, home: Arc<Home>, publisher: Arc<MqttPublisher>) {
@@ -73,16 +128,23 @@ async fn run_event_loop(mut eventloop: EventLoop, home: Arc<Home>, publisher: Ar
         match eventloop.poll().await {
             Ok(Event::Incoming(Packet::ConnAck(_))) => {
                 info!("mqtt connected");
+                publisher.status.connected_now();
                 if let Err(error) = publisher.subscribe_all().await {
                     warn!(%error, "mqtt resubscribe failed");
+                    publisher.status.note_error(format!("subscribe: {error}"));
                 }
             }
             Ok(Event::Incoming(Packet::Publish(publish))) => {
                 home.ingest(&publish.topic, &publish.payload);
             }
+            Ok(Event::Incoming(Packet::Disconnect)) => {
+                warn!("mqtt broker disconnected");
+                publisher.status.disconnected("broker disconnected");
+            }
             Ok(_) => {}
             Err(error) => {
                 error!(%error, "mqtt event loop error");
+                publisher.status.disconnected(error.to_string());
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }

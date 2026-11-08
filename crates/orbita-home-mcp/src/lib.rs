@@ -1,17 +1,22 @@
-//! MCP facade for home state and wb-rules commands.
+//! MCP facade for home state and Wiren Board commands.
 //!
-//! This is the offline skeleton: it owns the agent-facing contract and policy
-//! checks, but its backend is an in-memory fake. The real backend will publish
-//! commands to wb-rules and confirm them through MQTT state topics; the agent
-//! still never talks MQTT directly.
+//! The real backend (`HOME_MCP_SIMULATED=0`) subscribes to Wiren Board MQTT,
+//! keeps a state cache and publishes commands through `orbita-home`; the agent
+//! never sees MQTT credentials or raw topics. `HOME_MCP_SIMULATED=1` runs the
+//! same contract against an in-memory fake for shadow runs.
+
+mod fake;
+mod real;
 
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::HashMap,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
+use async_trait::async_trait;
 use axum::{Json, Router, routing::get};
+use orbita_home::Risk;
 use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -24,15 +29,40 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+pub use fake::FakeHome;
+pub use real::RealHome;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CapabilityInfo {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub risk: Risk,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Device {
     pub id: String,
     pub room: String,
     pub kind: String,
+    /// Capability name to its last reported value, typed by capability kind.
     pub state: Value,
     pub updated_ms: u64,
+    /// No message within the staleness window. Retained Wiren Board state goes
+    /// quiet when nothing changes, so this is an age signal, not availability.
     pub stale: bool,
+    /// A value has been reported and the device has no `meta/error`.
+    pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     pub writable: Vec<String>,
+    pub capabilities: Vec<CapabilityInfo>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,13 +85,6 @@ pub enum CommandStatus {
     Conflict,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Policy {
-    Safe,
-    Confirm,
-    Deny,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandResult {
     pub status: CommandStatus,
@@ -72,292 +95,81 @@ pub struct CommandResult {
     pub simulated: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct EventsPage {
+    pub epoch: u64,
+    pub cursor_reset: bool,
+    pub events: Vec<HomeEvent>,
+    pub next_cursor: u64,
+}
+
+/// What the MCP tools need from a home backend. `FakeHome` is used for shadow
+/// runs, `RealHome` for Wiren Board over MQTT.
+#[async_trait]
+pub trait Backend: Send + Sync {
+    fn simulated(&self) -> bool;
+    async fn devices(&self, room: Option<&str>, kind: Option<&str>) -> Vec<Device>;
+    async fn state(&self, device_id: &str) -> Result<Device, String>;
+    async fn command(&self, params: &CommandParams) -> CommandResult;
+    async fn scenes(&self) -> Vec<String>;
+    async fn scene_run(&self, params: &SceneParams) -> CommandResult;
+    async fn events(&self, params: &EventsParams) -> EventsPage;
+    async fn health(&self) -> Value;
+}
+
 #[derive(Debug, Clone)]
 struct CachedResponse {
     fingerprint: String,
     result: CommandResult,
 }
 
-#[derive(Debug)]
-pub struct FakeHome {
-    devices: BTreeMap<String, Device>,
-    events: VecDeque<HomeEvent>,
-    next_cursor: u64,
-    epoch: u64,
-    scene_counter: u64,
-    responses: HashMap<String, CachedResponse>,
-    simulated: bool,
+#[derive(Debug, Default)]
+struct CommandCache {
+    responses: Mutex<HashMap<String, CachedResponse>>,
 }
 
-impl FakeHome {
-    pub fn seeded(simulated: bool) -> Self {
-        let now = now_ms();
-        let mut devices = BTreeMap::new();
-        for (id, room, kind, writable, state) in [
-            (
-                "light_hall",
-                "коридор",
-                "light",
-                vec!["on_off".to_owned()],
-                json!({"on": false}),
-            ),
-            (
-                "light_kids",
-                "детская",
-                "light",
-                vec!["on_off".to_owned()],
-                json!({"on": false}),
-            ),
-            (
-                "climate_hall",
-                "коридор",
-                "temperature",
-                vec![],
-                json!({"temperature": 21.5}),
-            ),
-            (
-                "lock_front",
-                "прихожая",
-                "lock",
-                vec![],
-                json!({"locked": true}),
-            ),
-        ] {
-            devices.insert(
-                id.to_owned(),
-                Device {
-                    id: id.to_owned(),
-                    room: room.to_owned(),
-                    kind: kind.to_owned(),
-                    state,
-                    updated_ms: now,
-                    stale: false,
-                    writable,
-                },
-            );
+impl CommandCache {
+    fn check(&self, params: &CommandParams, fingerprint: &str) -> Option<CommandResult> {
+        let responses = self.responses.lock().unwrap_or_else(|e| e.into_inner());
+        let cached = responses.get(&params.request_id)?;
+        if cached.fingerprint == fingerprint {
+            return Some(cached.result.clone());
         }
-        Self {
-            devices,
-            events: VecDeque::new(),
-            next_cursor: 1,
-            epoch: now_ms(),
-            scene_counter: 0,
-            responses: HashMap::new(),
-            simulated,
-        }
+        Some(CommandResult {
+            status: CommandStatus::Conflict,
+            device: params.device_id.clone(),
+            capability: params.capability.clone(),
+            state: None,
+            reason: Some("request_id reused with different arguments".into()),
+            simulated: cached.result.simulated,
+        })
     }
 
-    fn command(
-        &mut self,
-        device_id: &str,
-        capability: &str,
-        value: Value,
-        request_id: &str,
-        confirm: Option<&str>,
-    ) -> CommandResult {
-        let fingerprint = format!("{device_id}\0{capability}\0{value}");
-        if let Some(cached) = self.responses.get(request_id) {
-            if cached.fingerprint == fingerprint {
-                return cached.result.clone();
-            }
-            return CommandResult {
-                status: CommandStatus::Conflict,
-                device: device_id.into(),
-                capability: capability.into(),
-                state: None,
-                reason: Some("request_id reused with different arguments".into()),
-                simulated: self.simulated,
-            };
+    fn remember(&self, params: &CommandParams, fingerprint: String, result: &CommandResult) {
+        if result.status == CommandStatus::Failed {
+            return;
         }
-        let Some(device) = self.devices.get(device_id) else {
-            return CommandResult {
-                status: CommandStatus::Failed,
-                device: device_id.into(),
-                capability: capability.into(),
-                state: None,
-                reason: Some("unknown device".into()),
-                simulated: self.simulated,
-            };
-        };
-        let policy = policy_for(&device.kind, capability);
-        if policy == Policy::Deny {
-            return self.finish(
-                request_id,
+        let mut responses = self.responses.lock().unwrap_or_else(|e| e.into_inner());
+        responses.insert(
+            params.request_id.clone(),
+            CachedResponse {
                 fingerprint,
-                CommandResult {
-                    status: CommandStatus::Denied,
-                    device: device_id.into(),
-                    capability: capability.into(),
-                    state: None,
-                    reason: Some("dangerous capability is deny-by-default".into()),
-                    simulated: self.simulated,
-                },
-            );
-        }
-        if policy == Policy::Confirm && confirm != Some("approved") {
-            return self.finish(
-                request_id,
-                fingerprint,
-                CommandResult {
-                    status: CommandStatus::Denied,
-                    device: device_id.into(),
-                    capability: capability.into(),
-                    state: None,
-                    reason: Some("out-of-band confirmation is required".into()),
-                    simulated: self.simulated,
-                },
-            );
-        }
-        if !device.writable.iter().any(|item| item == capability) {
-            return self.finish(
-                request_id,
-                fingerprint,
-                CommandResult {
-                    status: CommandStatus::Denied,
-                    device: device_id.into(),
-                    capability: capability.into(),
-                    state: None,
-                    reason: Some("capability is not writable".into()),
-                    simulated: self.simulated,
-                },
-            );
-        }
-        let Some(state) = merged_state(&device.state, capability, &value) else {
-            return self.finish(
-                request_id,
-                fingerprint,
-                CommandResult {
-                    status: CommandStatus::Denied,
-                    device: device_id.into(),
-                    capability: capability.into(),
-                    state: None,
-                    reason: Some("value does not match the capability schema".into()),
-                    simulated: self.simulated,
-                },
-            );
-        };
-        if self.simulated {
-            return self.finish(
-                request_id,
-                fingerprint,
-                CommandResult {
-                    status: CommandStatus::Simulated,
-                    device: device_id.into(),
-                    capability: capability.into(),
-                    state: Some(state),
-                    reason: None,
-                    simulated: true,
-                },
-            );
-        }
-        let timestamp_ms = now_ms();
-        if let Some(device) = self.devices.get_mut(device_id) {
-            device.state = state.clone();
-            device.updated_ms = timestamp_ms;
-            device.stale = false;
-        }
-        let event = HomeEvent {
-            cursor: self.next_cursor,
-            kind: "home.state_changed".into(),
-            device: device_id.into(),
-            capability: capability.into(),
-            value: value.clone(),
-            timestamp_ms,
-        };
-        self.next_cursor += 1;
-        self.events.push_back(event);
-        while self.events.len() > 1024 {
-            self.events.pop_front();
-        }
-        self.finish(
-            request_id,
-            fingerprint,
-            CommandResult {
-                status: CommandStatus::Executed,
-                device: device_id.into(),
-                capability: capability.into(),
-                state: Some(state),
-                reason: None,
-                simulated: false,
+                result: result.clone(),
             },
-        )
-    }
-
-    fn finish(
-        &mut self,
-        request_id: &str,
-        fingerprint: String,
-        result: CommandResult,
-    ) -> CommandResult {
-        if result.status != CommandStatus::Failed {
-            self.responses.insert(
-                request_id.to_owned(),
-                CachedResponse {
-                    fingerprint,
-                    result: result.clone(),
-                },
-            );
-            while self.responses.len() > 1024 {
-                if let Some(key) = self.responses.keys().next().cloned() {
-                    self.responses.remove(&key);
-                }
+        );
+        while responses.len() > 1024 {
+            if let Some(key) = responses.keys().next().cloned() {
+                responses.remove(&key);
             }
         }
-        result
     }
-}
-
-fn policy_for(kind: &str, capability: &str) -> Policy {
-    if kind == "lock" || capability == "lock" {
-        return Policy::Deny;
-    }
-    if matches!(kind, "boiler" | "gate" | "intercom") {
-        return Policy::Confirm;
-    }
-    Policy::Safe
-}
-
-fn merged_state(current: &Value, capability: &str, value: &Value) -> Option<Value> {
-    let mut state = current.as_object()?.clone();
-    if capability == "on_off" {
-        let on = value
-            .as_bool()
-            .or_else(|| value.get("on").and_then(Value::as_bool))?;
-        state.insert("on".into(), Value::Bool(on));
-    } else if let Some(fields) = value.as_object() {
-        for (key, value) in fields {
-            state.insert(key.clone(), value.clone());
-        }
-    } else {
-        state.insert(capability.to_owned(), value.clone());
-    }
-    Some(Value::Object(state))
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
-fn scene(name: &str) -> Option<(&'static str, Value)> {
-    match name {
-        "ухожу" => Some(("light_hall", json!({"on": false}))),
-        "кино" => Some(("light_kids", json!({"on": true}))),
-        "утро" => Some(("light_hall", json!({"on": true}))),
-        _ => None,
-    }
-}
-
-fn scene_names() -> Vec<&'static str> {
-    vec!["ухожу", "кино", "утро"]
 }
 
 #[derive(Clone)]
 pub struct HomeServer {
     tool_router: ToolRouter<Self>,
-    home: Arc<Mutex<FakeHome>>,
+    backend: Arc<dyn Backend>,
+    cache: Arc<CommandCache>,
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
@@ -378,7 +190,8 @@ pub struct CommandParams {
     pub value: Value,
     /// Idempotency key from the core.
     pub request_id: String,
-    /// Out-of-band confirmation token; `approved` is the fake test token.
+    /// Reserved for out-of-band approval. Dangerous capabilities are denied
+    /// regardless of this value until the approval channel exists.
     pub confirm: Option<String>,
 }
 
@@ -409,17 +222,118 @@ fn room_matches(actual: &str, query: &str) -> bool {
     stem(actual) == stem(query)
 }
 
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+/// Parse a JSON value from a tool call into a domain action.
+pub(crate) fn parse_action(kind: &str, value: &Value) -> Result<orbita_home::Action, String> {
+    match kind {
+        "bool" => parse_bool(value)
+            .map(|on| orbita_home::Action::OnOff { on })
+            .ok_or_else(|| "value must be a boolean (true/false, on/off, 1/0)".to_owned()),
+        "number" => parse_number(value)
+            .map(|value| orbita_home::Action::Number { value })
+            .ok_or_else(|| "value must be a finite number".to_owned()),
+        "enum" => value
+            .as_str()
+            .or_else(|| value.get("value").and_then(Value::as_str))
+            .map(|value| orbita_home::Action::Enum {
+                value: value.to_owned(),
+            })
+            .ok_or_else(|| "value must be a string".to_owned()),
+        other => Err(format!("unsupported capability type {other}")),
+    }
+}
+
+/// The JSON form of an action, used when the fake backend updates its cache.
+pub(crate) fn action_value(action: &orbita_home::Action) -> Value {
+    match action {
+        orbita_home::Action::OnOff { on } => Value::Bool(*on),
+        orbita_home::Action::Number { value } => json!(value),
+        orbita_home::Action::Enum { value } => Value::String(value.clone()),
+        orbita_home::Action::Status => Value::Null,
+    }
+}
+
+fn parse_bool(value: &Value) -> Option<bool> {
+    if let Some(value) = value.as_bool() {
+        return Some(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Some(value != 0.0);
+    }
+    if let Some(value) = value.as_str() {
+        return parse_bool_str(value);
+    }
+    value.get("on").and_then(parse_bool)
+}
+
+pub(crate) fn parse_bool_str(value: &str) -> Option<bool> {
+    let value = value.trim();
+    if value.eq_ignore_ascii_case("true")
+        || value.eq_ignore_ascii_case("on")
+        || value.eq_ignore_ascii_case("вкл")
+    {
+        return Some(true);
+    }
+    if value.eq_ignore_ascii_case("false")
+        || value.eq_ignore_ascii_case("off")
+        || value.eq_ignore_ascii_case("выкл")
+    {
+        return Some(false);
+    }
+    match value.parse::<f64>() {
+        Ok(value) if (value - 1.0).abs() <= 1e-6 => Some(true),
+        Ok(value) if value.abs() <= 1e-6 => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_number(value: &Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_str().and_then(|value| value.trim().parse().ok()))
+        .or_else(|| value.get("value").and_then(parse_number))
+        .filter(|value| value.is_finite())
+}
+
 impl HomeServer {
+    /// In-memory backend for shadow runs and offline tests.
     pub fn new(simulated: bool) -> Self {
+        Self::with_backend(Arc::new(FakeHome::seeded(simulated)))
+    }
+
+    pub fn with_backend(backend: Arc<dyn Backend>) -> Self {
         Self {
             tool_router: Self::tool_router(),
-            home: Arc::new(Mutex::new(FakeHome::seeded(simulated))),
+            backend,
+            cache: Arc::new(CommandCache::default()),
         }
     }
 
-    pub fn shared(mut self, home: Arc<Mutex<FakeHome>>) -> Self {
-        self.home = home;
-        self
+    /// Real Wiren Board backend over MQTT.
+    pub async fn connect(config_path: &str, ack_timeout: Duration) -> Result<Self, String> {
+        let backend = RealHome::start(config_path, ack_timeout).await?;
+        Ok(Self::with_backend(Arc::new(backend)))
+    }
+
+    async fn run_command(&self, params: CommandParams) -> CommandResult {
+        let fingerprint = format!(
+            "{}\0{}\0{}",
+            params.device_id,
+            params.capability,
+            serde_json::to_string(&params.value).unwrap_or_default()
+        );
+        if let Some(result) = self.cache.check(&params, &fingerprint) {
+            return result;
+        }
+        let result = self.backend.command(&params).await;
+        self.cache.remember(&params, fingerprint, &result);
+        result
     }
 }
 
@@ -427,110 +341,49 @@ impl HomeServer {
 impl HomeServer {
     #[tool(description = "Список устройств дома, опционально по комнате или типу.")]
     pub async fn devices(&self, Parameters(params): Parameters<DevicesParams>) -> String {
-        let home = self.home.lock().expect("home lock");
-        let devices: Vec<_> = home
-            .devices
-            .values()
-            .filter(|device| {
-                params
-                    .room
-                    .as_deref()
-                    .is_none_or(|room| room_matches(&device.room, room))
-                    && params
-                        .kind
-                        .as_deref()
-                        .is_none_or(|kind| device.kind.eq_ignore_ascii_case(kind))
-            })
-            .collect();
+        let devices = self
+            .backend
+            .devices(params.room.as_deref(), params.kind.as_deref())
+            .await;
         serde_json::to_string(&devices).unwrap_or_else(|_| "[]".into())
     }
 
     #[tool(description = "Состояние одного устройства дома.")]
     pub async fn state(&self, Parameters(params): Parameters<StateParams>) -> String {
-        let home = self.home.lock().expect("home lock");
-        match home.devices.get(&params.device_id) {
-            Some(device) => serde_json::to_string(device).unwrap_or_else(|_| "{}".into()),
-            None => format!("Ошибка: неизвестное устройство {}", params.device_id),
+        match self.backend.state(&params.device_id).await {
+            Ok(device) => serde_json::to_string(&device).unwrap_or_else(|_| "{}".into()),
+            Err(error) => format!("Ошибка: {error}"),
         }
     }
 
     #[tool(
-        description = "Команда устройству. Для опасных capability нужен out-of-band confirm; в fake lock запрещён."
+        description = "Команда устройству. Опасные capability запрещены (deny by default); request_id делает команду идемпотентной."
     )]
     pub async fn command(&self, Parameters(params): Parameters<CommandParams>) -> String {
-        let mut home = self.home.lock().expect("home lock");
-        let result = home.command(
-            &params.device_id,
-            &params.capability,
-            params.value,
-            &params.request_id,
-            params.confirm.as_deref(),
-        );
+        let result = self.run_command(params).await;
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".into())
     }
 
-    #[tool(description = "Список именованных сцен wb-rules.")]
+    #[tool(description = "Список именованных сцен. Сейчас сцен нет.")]
     pub async fn scenes(&self) -> String {
-        serde_json::to_string(&scene_names()).unwrap_or_else(|_| "[]".into())
+        serde_json::to_string(&self.backend.scenes().await).unwrap_or_else(|_| "[]".into())
     }
 
-    #[tool(description = "Запустить именованную сцену wb-rules.")]
+    #[tool(description = "Запустить именованную сцену. Сцены ещё не настроены.")]
     pub async fn scene_run(&self, Parameters(params): Parameters<SceneParams>) -> String {
-        let Some((device, value)) = scene(&params.name) else {
-            return format!("Ошибка: неизвестная сцена {}", params.name);
-        };
-        let mut home = self.home.lock().expect("home lock");
-        let request_id = params.request_id.unwrap_or_else(|| {
-            home.scene_counter += 1;
-            format!(
-                "scene:{}:{}:{}",
-                home.epoch, home.scene_counter, params.name
-            )
-        });
-        let result = home.command(device, "on_off", value, &request_id, None);
+        let result = self.backend.scene_run(&params).await;
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".into())
     }
 
     #[tool(description = "События дома после cursor.")]
     pub async fn events(&self, Parameters(params): Parameters<EventsParams>) -> String {
-        let home = self.home.lock().expect("home lock");
-        if params.epoch.is_some_and(|epoch| epoch != home.epoch) {
-            return json!({
-                "cursor_reset": true,
-                "epoch": home.epoch,
-                "events": [],
-                "next_cursor": home.next_cursor,
-            })
-            .to_string();
-        }
-        let limit = params.limit.unwrap_or(50).min(200);
-        let events: Vec<_> = home
-            .events
-            .iter()
-            .filter(|event| event.cursor > params.cursor)
-            .take(limit)
-            .collect();
-        json!({
-            "epoch": home.epoch,
-            "cursor_reset": false,
-            "events": events,
-            "next_cursor": events.last().map(|event| event.cursor).unwrap_or(params.cursor),
-        })
-        .to_string()
+        let page = self.backend.events(&params).await;
+        serde_json::to_string(&page).unwrap_or_else(|_| "{}".into())
     }
 
-    #[tool(description = "Здоровье home-MCP: backend, broker, rules.")]
+    #[tool(description = "Здоровье home-MCP: backend, broker, устройства.")]
     pub async fn health(&self) -> String {
-        let home = self.home.lock().expect("home lock");
-        json!({
-            "status": "ok",
-            "backend": "fake",
-            "broker": "fake",
-            "rules": "fake",
-            "epoch": home.epoch,
-            "next_cursor": home.next_cursor,
-        })
-        .to_string()
+        self.backend.health().await.to_string()
     }
 }
 
@@ -540,7 +393,7 @@ impl ServerHandler for HomeServer {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("home", env!("CARGO_PKG_VERSION")))
             .with_instructions(
-                "Дом: состояние и команды через wb-rules. Никаких прямых MQTT-топиков; опасные действия запрещены без подтверждения.",
+                "Дом: состояние и команды через Wiren Board MQTT. Никаких прямых топиков; опасные действия запрещены без подтверждения.",
             )
     }
 }
@@ -581,7 +434,7 @@ mod tests {
     #[tokio::test]
     async fn commands_update_state_and_are_idempotent() {
         let server = HomeServer::new(false);
-        let params = command("light_hall", json!({"on": true}), "req-1");
+        let params = command("light_hall", json!(true), "req-1");
         let first = server.command(Parameters(params.clone())).await;
         assert!(first.contains("\"executed\""));
         let second = server.command(Parameters(params)).await;
@@ -599,7 +452,7 @@ mod tests {
                 device_id: "light_hall".into(),
             }))
             .await;
-        assert!(state.contains("\"on\":true"));
+        assert!(state.contains("\"on_off\":true"));
     }
 
     #[tokio::test]
@@ -608,7 +461,7 @@ mod tests {
         let first = server
             .command(Parameters(command(
                 "light_hall",
-                json!({"on": true}),
+                json!(true),
                 "req-conflict",
             )))
             .await;
@@ -616,7 +469,7 @@ mod tests {
         let second = server
             .command(Parameters(command(
                 "light_hall",
-                json!({"on": false}),
+                json!(false),
                 "req-conflict",
             )))
             .await;
@@ -624,7 +477,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dangerous_lock_is_denied() {
+    async fn dangerous_lock_is_denied_even_with_confirm() {
         let server = HomeServer::new(false);
         let result = server
             .command(Parameters(CommandParams {
@@ -642,11 +495,7 @@ mod tests {
     async fn simulated_commands_do_not_mutate_state() {
         let server = HomeServer::new(true);
         let result = server
-            .command(Parameters(command(
-                "light_hall",
-                json!({"on": true}),
-                "req-shadow",
-            )))
+            .command(Parameters(command("light_hall", json!(true), "req-shadow")))
             .await;
         assert!(result.contains("\"simulated\""));
         let state = server
@@ -654,29 +503,20 @@ mod tests {
                 device_id: "light_hall".into(),
             }))
             .await;
-        assert!(state.contains("\"on\":false"));
+        assert!(state.contains("\"on_off\":false"));
     }
 
     #[tokio::test]
-    async fn scene_runs_again_with_a_fresh_request() {
+    async fn scenes_are_not_configured() {
         let server = HomeServer::new(false);
-        for _ in 0..2 {
-            let result = server
-                .scene_run(Parameters(SceneParams {
-                    name: "утро".into(),
-                    request_id: None,
-                }))
-                .await;
-            assert!(result.contains("\"executed\""));
-        }
-        let events = server
-            .events(Parameters(EventsParams {
-                cursor: 0,
-                epoch: None,
-                limit: None,
+        assert_eq!(server.scenes().await, "[]");
+        let result = server
+            .scene_run(Parameters(SceneParams {
+                name: "утро".into(),
+                request_id: None,
             }))
             .await;
-        assert_eq!(events.matches("home.state_changed").count(), 2);
+        assert!(result.contains("\"denied\""));
     }
 
     #[tokio::test]
@@ -696,11 +536,7 @@ mod tests {
     async fn events_advance_and_detect_epoch_reset() {
         let server = HomeServer::new(false);
         server
-            .command(Parameters(command(
-                "light_hall",
-                json!({"on": true}),
-                "req-evt",
-            )))
+            .command(Parameters(command("light_hall", json!(true), "req-evt")))
             .await;
         let events = server
             .events(Parameters(EventsParams {
