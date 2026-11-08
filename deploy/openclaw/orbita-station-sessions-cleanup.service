@@ -1,0 +1,9 @@
+[Unit]
+Description=orbita: delete old OpenClaw station sessions
+
+[Service]
+Type=oneshot
+User=openclaw
+Environment=KEEP_DAYS=7
+Environment=PATH=/home/openclaw/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /usr/local/lib/orbita/station-sessions-cleanup.py

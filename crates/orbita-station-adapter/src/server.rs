@@ -33,6 +33,7 @@ use tracing::{info, warn};
 
 use crate::core::Core;
 use crate::schedule::{Commitment, Notifier, Scheduler, choose_delivery, split_channel};
+use crate::sessions::StationSessions;
 use crate::speech;
 use crate::station::{Directive, StationFunctions, intent_action};
 
@@ -74,6 +75,8 @@ pub struct AppState {
     pub telegram_chat: Option<String>,
     /// Send the first sentence of a core reply early (D-19).
     pub stream_replies: bool,
+    /// One core session per conversation, new after a pause.
+    pub sessions: StationSessions,
 }
 
 impl AppState {
@@ -87,6 +90,7 @@ impl AppState {
             outbound_key: None,
             telegram_chat: None,
             stream_replies: false,
+            sessions: StationSessions::default(),
         }
     }
 }
@@ -307,8 +311,25 @@ pub async fn handle_turn(
     text: &str,
     early: Option<mpsc::UnboundedSender<String>>,
 ) -> TurnResult {
+    let session_key = state.sessions.begin(duid, chrono::Utc::now());
+    let result = turn_in_session(state, functions, duid, text, early, session_key).await;
+    state
+        .sessions
+        .finish(duid, chrono::Utc::now(), &result.text);
+    result
+}
+
+async fn turn_in_session(
+    state: &AppState,
+    functions: &StationFunctions,
+    duid: &str,
+    text: &str,
+    early: Option<mpsc::UnboundedSender<String>>,
+    session_key: String,
+) -> TurnResult {
     let started = Instant::now();
-    let event = inbound_event(&state.identity, functions, duid, text);
+    let mut event = inbound_event(&state.identity, functions, duid, text);
+    event.session_key = session_key;
     if let Err(error) = event.validate() {
         warn!(%error, %duid, "invalid inbound event");
         return TurnResult {
@@ -587,8 +608,8 @@ pub fn inbound_event(
         // D-23: voice devices speak for the household, not for a person.
         principal: format!("household:{}", identity.household),
         household: identity.household.clone(),
-        // One core session per station per Moscow day: follow-ups work, but
-        // history (and prefill) does not grow without bound.
+        // Day key as a fallback; `handle_turn` replaces it with the key of
+        // the current conversation (`StationSessions`).
         session_key: station_session_key(duid, chrono::Utc::now()),
         locale: identity.locale.clone(),
         timezone: identity.timezone.clone(),

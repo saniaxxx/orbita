@@ -74,6 +74,10 @@ async fn main() -> Result<()> {
     state.telegram_chat = telegram_chat;
     state.stream_replies =
         orbita_core::env_bool("STREAM_REPLIES", false).map_err(anyhow::Error::msg)?;
+    let idle: u64 =
+        orbita_core::env_parse("SESSION_IDLE_SECS", 60u64).map_err(anyhow::Error::msg)?;
+    state.sessions =
+        orbita_station_adapter::sessions::StationSessions::new(Duration::from_secs(idle));
     if let Some(url) = non_empty("QUASAR_API_URL") {
         state.notifier = Some(Arc::new(QuasarNotifier::new(url)?));
     }
@@ -82,6 +86,7 @@ async fn main() -> Result<()> {
         push = state.notifier.is_some(),
         telegram = state.telegram_chat.is_some(),
         stream = state.stream_replies,
+        session_idle_secs = idle,
         "adapter configured"
     );
     let state = Arc::new(state);

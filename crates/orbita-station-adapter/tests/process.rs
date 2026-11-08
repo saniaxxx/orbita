@@ -161,6 +161,23 @@ async fn intents_run_locally_without_the_core() {
 }
 
 #[tokio::test]
+async fn a_follow_up_stays_in_the_same_core_session() {
+    let core = Arc::new(FakeCore::default());
+    *core.reply.lock().unwrap() = Some(CoreTurn {
+        text: "Жили-были кот и пёс. Хочешь ещё сказку?".into(),
+        actions: Vec::new(),
+    });
+    let url = serve(core.clone()).await;
+
+    process(&url, Some(prepare()), "расскажи сказку").await;
+    process(&url, Some(prepare()), "да").await;
+
+    let events = core.events.lock().unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].session_key, events[1].session_key);
+}
+
+#[tokio::test]
 async fn dialogue_goes_to_the_core_with_contract_capabilities() {
     let core = Arc::new(FakeCore::default());
     *core.reply.lock().unwrap() = Some(CoreTurn {

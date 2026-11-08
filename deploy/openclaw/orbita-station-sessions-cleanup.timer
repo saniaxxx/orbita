@@ -1,0 +1,9 @@
+[Unit]
+Description=orbita: nightly cleanup of old OpenClaw station sessions
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 Europe/Moscow
+Persistent=true
+
+[Install]
+WantedBy=timers.target
