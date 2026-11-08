@@ -88,5 +88,22 @@ Backup on CT100: `/root/backup-qsg-eou-20261108/`.
   and yields `Алиса, какая сейчас`; the comma pause and a 0.5 s pause are
   intact. That is the 800 ms EOU trade-off, not the energy gate.
 
+### Synthesized TTS level
+
+Vosk TTS is much louder than the quiet station microphone. After the
+streaming `INPUT_GAIN=30` the synthesized signal can reach peak 1.0
+(clipping), and about one simulator run in three came out empty. The live
+microphone path is unaffected. Normalize the Ogg in the test harness, not in
+qsg:
+
+```sh
+ffmpeg -y -i phrase.wav -af "volume=0.45,apad=pad_dur=2.0" \
+  -ar 48000 -ac 1 -c:a libopus -b:a 32k phrase.ogg
+# or: -af "loudnorm=I=-20:TP=-2:LRA=7,apad=pad_dur=2.0"
+```
+
+Keep the phrase unchanged otherwise: the harness should exercise EOU, not
+the TTS level.
+
 Voice recordings under `/tmp/asr-audio` are private and are not copied into
 this repository. Test harness and calibration scripts live only on CT100.
