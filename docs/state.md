@@ -265,7 +265,7 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   `orbita-agent` остаётся запущенным: его уже поставленные напоминания
   доставятся, и он нужен для мгновенного отката.
 
-## 5b. home-MCP (ветка `feat/home-mcp`, 08.11.2026, развёрнут, L3)
+## 5b. home-MCP (08.11.2026, развёрнут, L3)
 
 - Реальный backend подписывается на state/`meta/error` топики, публикует
   команды только с `retain=false` и подтверждает `executed` по state-топику с
@@ -353,9 +353,10 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 
 ## 6. Откат POC (важно)
 
-Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`feat/openclaw`) и
-шлёт grammar per-request; `main` (`0f54562`) ожидает глобальную GBNF. Поэтому
-откат — связанная операция, а не просто `git checkout main`:
+Ветки сведены в `main` 08.11.2026; последнее состояние до OpenClaw —
+коммит `0f54562` (legacy-агент с глобальной GBNF). Legacy-агент на
+`orbita-hub` остановлен и собран из `f836d93` (grammar per-request). Откат
+к legacy — связанная операция, а не просто `git checkout 0f54562`:
 
 1. На `orbita-brain`: `systemctl disable --now openclaw orbita-station-adapter`
    (если OpenClaw больше не нужен); конфиг OpenClaw —
