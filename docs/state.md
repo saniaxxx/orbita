@@ -62,14 +62,19 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 
 ## 4. Что ещё не сделано
 
-- OpenClaw умеет search/TV tools, но нет каналов, station adapter и home-MCP.
-  Один слот llama; OpenClaw и голос делят очередь.
-- Полный workspace clippy/test не завершён из-за зависания сборки `orbita-proto`
-  на этой машине; новые крейты проверены отдельно.
+- Станция ещё говорит через legacy `orbita-agent`: quasar не переключён на
+  адаптер (изменение прод-сервиса; команда в §5a, выполняет человек).
+- Telegram не подключён: нет токена бота и chat id. «Напомни в телеграм»
+  честно отвечает «Телеграм пока не подключён, напомню здесь».
+- Нет каналов mobile/web и home-MCP на реальном wb-rules (свет у legacy есть,
+  через адаптер — нет).
+- Один слот llama: до переключения станции его делят legacy и OpenClaw; после —
+  только OpenClaw (станция и адаптер LLM не используют).
+- Workspace-ворота проходят с `CARGO_TARGET_DIR=/tmp/orbita-target`
+  (зависание `orbita-proto` было из-за target на внешнем диске).
 - Нет `home-MCP` и событий дома через MCP.
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
-- Нет единого контракта `InboundEvent/Reply` в рабочем коде (есть v0-крейт).
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
 
 ## 5. Offline-заготовки
@@ -79,8 +84,53 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   JSON; 6 unit + 2 golden теста.
 - `crates/orbita-home-mcp` — MCP-фасад с fake-backend: devices/state/command/
   scenes/events/health, policy, idempotency, epoch курсора; 7 тестов.
-- Station adapter и streaming пока не реализованы; им нужен контракт v0
-  после POC и симулятор.
+- `crates/orbita-intents` — громкость, таймер (в т.ч. «засеки N минут»),
+  парсер напоминаний; общий для legacy-агента и адаптера; legacy
+  `fastpath`/`reminder` стали обёртками, 18/18 directive-тестов зелёные.
+- `crates/orbita-station-adapter` — quasar `/process` → `InboundEvent` →
+  громкость локально / обязательства во времени в планировщик OpenClaw /
+  остальное в OpenClaw → директивы; `/outbound` принимает доставку
+  планировщика и шлёт push на колонку. 12 unit + 8 интеграционных тестов
+  (фейковые ядро, планировщик, уведомитель, Gateway) и живой `tests/live.rs`.
+
+## 5a. Station adapter на стенде (08.11.2026, L3)
+
+- `orbita-brain`: `orbita-station-adapter.service` (user `openclaw` — нужен
+  CLI OpenClaw для планировщика; `0.0.0.0:8081`), секреты
+  `OPENCLAW_TOKEN`/`OUTBOUND_KEY` в `/etc/orbita/station-adapter.env`
+  (root:openclaw 0640). Бинарник собран на `orbita-hub` в `/opt/orbita-feat`
+  (рабочее дерево `/opt/orbita` не тронуто).
+- OpenClaw: `gateway.http.endpoints.chatCompletions.enabled` и
+  `cron.webhookSsrfPolicy.allowedHostnames=["127.0.0.1"]` (бэкапы
+  `openclaw.json.bak-adapter-20261108`, `openclaw.json.bak-cron-20261108`).
+- Маршруты (D-26): громкость — intents, 7–16 мс, без LLM; «таймер на N»,
+  «засеки N минут», «напомни через/в …» — задача `openclaw cron add`
+  (command payload `printf`, без LLM при срабатывании, `--delete-after-run`),
+  ~1,3 с на запуск CLI; свободные формулировки — OpenClaw вызывает client tool
+  `reminder_create`; остальное — OpenClaw с системной инструкцией голосового
+  стиля и сессией `station:<duid>:<дата МСК>`.
+- Живой прогон `/process` (станция и quasar не в цикле), 7/7: громкость 9–16 мс;
+  таймеры 1,3 с; «через пять минуток скажи мне проверить духовку» →
+  `reminder_create`, 4,4 с; «привет» 0,9 с; погода — «облачно, ночью около нуля,
+  днём до плюс трёх», 1,4–2,9 с.
+- Сквозная доставка (фейковый duid, беззвучно): таймер 30 с и напоминание
+  через 1 мин сработали вовремя, планировщик → `/outbound` → quasar push 200.
+- Найдено и исправлено: модель отвечала «засекаю» без вызова инструмента;
+  теперь «засеки» — детерминированный путь, а инструкция запрещает обещания
+  без вызова. Плохие ответы про погоду шли из накопленной истории сессии.
+- Откат адаптера: `systemctl disable --now orbita-station-adapter` на
+  `orbita-brain`; прошлые бинарник/юнит/env — `*.prev` в `/usr/local/bin` и
+  `/root`; конфиг OpenClaw — бэкапы выше, затем `systemctl restart openclaw`.
+- **Переключение станции (выполняет человек, на pve3):**
+
+  ```sh
+  pct exec 101 -- sh -c 'cd /opt/quasar-server && cp -p .env .env.bak-adapter-20261108 && sed -i "s|^PROCESSOR_BASIC_URL=.*|PROCESSOR_BASIC_URL=http://192.168.250.105:8081/process|" .env && systemctl restart quasar-server'
+  ```
+
+  Откат: `pct exec 101 -- sh -c 'cd /opt/quasar-server && cp -p
+  .env.bak-adapter-20261108 .env && systemctl restart quasar-server'`.
+  `orbita-agent` остаётся запущенным: его уже поставленные напоминания
+  доставятся, и он нужен для мгновенного отката.
 
 ## 6. Откат POC (важно)
 

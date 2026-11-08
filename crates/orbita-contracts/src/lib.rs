@@ -146,11 +146,32 @@ pub struct Reply {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceAction {
-    SetVolume { level: u8 },
-    SetTimer { seconds: u64, label: Option<String> },
-    MediaPlay { url: String },
+    /// Absolute level on the device scale (station: 1..=10).
+    SetVolume {
+        level: u8,
+    },
+    /// Relative step: louder or quieter by the device's own increment.
+    StepVolume {
+        direction: VolumeDirection,
+    },
+    SetTimer {
+        seconds: u64,
+        label: Option<String>,
+    },
+    MediaPlay {
+        url: String,
+    },
     PlayAudio,
-    ShowText { text: String },
+    ShowText {
+        text: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VolumeDirection {
+    Up,
+    Down,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

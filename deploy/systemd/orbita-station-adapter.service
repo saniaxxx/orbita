@@ -1,0 +1,41 @@
+[Unit]
+Description=orbita-station-adapter: quasar /process in front of OpenClaw
+After=network-online.target openclaw.service
+Wants=network-online.target
+
+# Runs on orbita-brain (CT 102) next to the OpenClaw Gateway, so the Gateway
+# token never leaves loopback. quasar on orbita-hub connects to :8081.
+# Runs as `openclaw`: it creates scheduler jobs with the OpenClaw CLI (D-26),
+# which reads the Gateway config from that user's home.
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+Environment=HOME=/home/openclaw
+Environment=HOST=0.0.0.0
+Environment=PORT=8081
+Environment=OPENCLAW_URL=http://127.0.0.1:18789
+Environment=OPENCLAW_MODEL=openclaw/default
+Environment=OPENCLAW_BIN=/home/openclaw/.npm-global/bin/openclaw
+Environment=PATH=/home/openclaw/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CORE_TIMEOUT_SECS=45
+Environment=HOUSEHOLD=home
+Environment=OUTBOUND_BASE=http://127.0.0.1:8081
+Environment=QUASAR_API_URL=http://192.168.250.103:31121
+# The TypeScript quasar on the stand does not send metadata.internal.deviceId.
+Environment=DEFAULT_DUID=LG0000000000002793950000ab593116
+# OPENCLAW_TOKEN, OUTBOUND_KEY and optional TELEGRAM_CHAT_ID live here (0640),
+# not in the repository.
+EnvironmentFile=/etc/orbita/station-adapter.env
+ExecStart=/usr/local/bin/orbita-station-adapter
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+# The OpenClaw CLI writes its own state under ~/.openclaw.
+ReadWritePaths=/home/openclaw/.openclaw
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,305 @@
+{
+  "smart_speaker_alarm_add": {
+    "description": "Adds alarm to speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7,
+                "description": "Week day: 1 - Monday, 7 - Sunday"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "day": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  },
+                  "month": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  },
+                  "year": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "day",
+                  "month",
+                  "year"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Days or weekdays when alarm should run (each entry either specific weekday, or specific day)"
+        },
+        "time": {
+          "type": "object",
+          "properties": {
+            "hours": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 23
+            },
+            "minutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 59
+            },
+            "seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 59
+            }
+          },
+          "required": [
+            "hours",
+            "minutes",
+            "seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "days",
+        "time"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_alarm_cancel": {
+    "description": "Removes specific alarm from speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_alarm_stop": {
+    "description": "Stops running active alarm on speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_timer_set": {
+    "description": "Adds timer to speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "durationSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "durationSeconds"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_timer_stop": {
+    "description": "Stops specific timer on speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_timer_cancel": {
+    "description": "Removes specific timer from speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_timer_pause": {
+    "description": "Pauses specific timer on speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_timer_resume": {
+    "description": "Resumes specific timer on speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_player_play": {
+    "description": "Starts music, or continues if was paused",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_player_pause": {
+    "description": "Pause music if it is playing",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_player_next_track": {
+    "description": "Switch to next track",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_player_previous_track": {
+    "description": "Switch to previous track",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_player_rewind": {
+    "description": "Rewind music if it is playing",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "amountMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Amount to rewind in ms (always positive)"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "Forward"
+            },
+            {
+              "type": "string",
+              "const": "Backward"
+            }
+          ]
+        }
+      },
+      "required": [
+        "amountMs",
+        "direction"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_bluetooth": {
+    "description": "Enable or disable Bluetooth on smart speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enable"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_set_sound_volume_louder": {
+    "description": "Atomically make smart speaker volume louder",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_set_sound_volume_quieter": {
+    "description": "Atomically make smart speaker volume quieter",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    }
+  },
+  "smart_speaker_set_sound_volume": {
+    "description": "Set volume on smart speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "volume": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      },
+      "required": [
+        "volume"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "smart_speaker_play_iot_sound": {
+    "description": "Play IoT power on/power off sound on smart speaker",
+    "arguments": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "isPowerOn": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "isPowerOn"
+      ],
+      "additionalProperties": false,
+      "description": "true if \"on\" sound, false if \"off\" sound"
+    }
+  }
+}

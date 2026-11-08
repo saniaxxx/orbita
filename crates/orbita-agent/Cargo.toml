@@ -14,6 +14,7 @@ chrono.workspace = true
 futures-util.workspace = true
 orbita-core = { path = "../orbita-core" }
 orbita-home = { path = "../orbita-home" }
+orbita-intents = { path = "../orbita-intents" }
 regex.workspace = true
 reqwest.workspace = true
 rusqlite = { version = "0.41", features = ["bundled"] }

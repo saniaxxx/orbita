@@ -118,6 +118,11 @@ quasar на `orbita-agent`.
 - wb-rules публикует события; home-MCP фильтрует, хранит cursor, dedup.
 - `home_events` + MCP Events (signed webhooks) для критичных.
 - HTTPS callback в LAN: reverse proxy/Tailscale.
+- Обязательства во времени (D-26): напоминания/будильники/таймеры создаёт
+  агент в планировщике OpenClaw; доставка `announce` в Telegram или `webhook`
+  в station-адаптер (`POST /outbound` → quasar `push/text`). Разрешить
+  приватный webhook через `cron.webhookSsrfPolicy.allowedHostnames`. После
+  этого убрать мост `device_set_timer` и перенести напоминания legacy.
 - OutboundEvent: напоминания, объявления, критические уведомления.
   Ack/retry/TTL, offline-device не блокирует остальные цели.
 - Target resolver: principal/room → конкретное устройство с учётом quiet hours.

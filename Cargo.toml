@@ -14,6 +14,8 @@ members = [
     "crates/orbita-glagol",
     "crates/orbita-home",
     "crates/orbita-home-mcp",
+    "crates/orbita-intents",
+    "crates/orbita-station-adapter",
     "crates/orbita-agent",
     "crates/orbita-tv",
 ]

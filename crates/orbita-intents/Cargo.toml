@@ -1,0 +1,11 @@
+[package]
+name = "orbita-intents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Deterministic voice intents (volume, timers) shared by the agent and adapters"
+
+[dependencies]
+chrono.workspace = true
+regex.workspace = true

@@ -1564,6 +1564,7 @@ dependencies = [
  "futures-util",
  "orbita-core",
  "orbita-home",
+ "orbita-intents",
  "regex",
  "reqwest",
  "rusqlite",
@@ -1691,6 +1692,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbita-intents"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "regex",
+]
+
+[[package]]
 name = "orbita-mcp-search"
 version = "0.1.0"
 dependencies = [
@@ -1760,6 +1769,27 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tower",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "orbita-station-adapter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "chrono",
+ "futures-util",
+ "orbita-contracts",
+ "orbita-core",
+ "orbita-intents",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
  "tracing",
  "uuid",
 ]

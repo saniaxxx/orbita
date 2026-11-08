@@ -118,9 +118,20 @@ OutboundEvent {
 - `directives` не входят в Reply. Они живут только в station-адаптере.
 - Действия устройства (`SetVolume`, `SetTimer`, `MediaPlay`) доставляются не
   как `Reply.actions`, а через механизм, который поддерживает выбранное ядро:
-  client-side tools, device-MCP или structured output. Это go/no-go POC.
-- Capabilities устройства (карта директив из `prepare`) должны превращаться в
-  набор tool’ов на ход/канал. Проверка этого — критерий POC.
+  client-side tools, device-MCP или structured output. **Решено (08.11.2026,
+  L3): client tools OpenClaw** — адаптер передаёт функции в `tools` запроса
+  `/v1/chat/completions`, OpenClaw возвращает `tool_calls`, адаптер исполняет
+  их и отвечает `role: tool`, чтобы агент закончил ход. Проверено на
+  `device_set_timer`/`device_step_volume`; по D-26 громкость ядру больше не
+  передаётся, а единственный client tool сейчас — `reminder_create`
+  (обязательство во времени в планировщик ядра).
+- Capabilities устройства (карта директив из `prepare`) превращаются в
+  `Capabilities.actions` (`set_volume`, `step_volume`, `set_timer`).
+  `DeviceAction::StepVolume` — относительная громкость (louder/quieter);
+  адаптер рендерит её в директиву сам, из intent layer.
+- Голосовой ход несёт системную инструкцию стиля (1–2 предложения, без
+  списков и источников, текущее время МСК). Сессия ядра для станции —
+  `station:<duid>:<дата МСК>`: уточнения работают, история не растёт без конца.
 - `HomeAction` в Reply отсутствует: дом — только MCP-tool.
 - `OutboundEvent` нужен для напоминаний, событий дома и объявлений.
   Семантика: `target` резолвится в конкретное устройство/комнату с учётом
@@ -285,10 +296,12 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
   владеет планировщиком и напоминаниями, фиксируется на каждой фазе.
 - **D-21. LLM serving.** Грамматика per-request, ≥2 слота или раздельные
   endpoint’ы, приоритет голоса, замер prefill.
-- **D-22. Граница station adapter.** ADR в фазе 0: adapter за `/process` или
-  внутри quasar; TtsSpeak/Close принадлежат quasar. Отдельно выбрать живой
-  TS-quasar или Rust `orbita-quasar`; при варианте «за `/process`» quasar
-  обязан принимать несколько `partialResponse` и делать пофразовый TTS.
+- **D-22. Граница station adapter — за `/process` (08.11.2026).** Отдельный
+  сервис `orbita-station-adapter` на `orbita-brain` рядом с Gateway (токен не
+  покидает loopback); живой TS-quasar не меняется, TtsSpeak/Close остаются у
+  него. Детерминированный слой громкости/таймера (D-25) — общий крейт
+  `orbita-intents`, вызывается адаптером до ядра. Для streaming (D-19) quasar
+  всё равно должен научиться нескольким `partialResponse` и пофразовому TTS.
 - **D-23. Идентичность и approvals.** household + person; опасные действия
   подтверждаются out-of-band.
 - **D-24. Shadow — отдельный инстанс ядра.** У него отключены cron,
@@ -297,6 +310,26 @@ OpenClaw → home-MCP → MQTT → wb-rules → устройства
   пробрасывать его в tools/call.
 - **D-25. Deterministic intent layer.** Fast paths — явный слой с аудитом, не
   скрытая логика интерфейса.
+- **D-26. Настройки устройства — у интерфейса, обязательства во времени —
+  у ядра (08.11.2026, решение владельца).**
+  - Громкость, плеер, Bluetooth, звуки (`set_sound_volume*`, `player_*`,
+    `bluetooth`, `play_iot_sound`) — пульт колонки. Их исполняет адаптер через
+    intent layer; ядру они не передаются как tools (в `Capabilities` они
+    остаются как описание устройства).
+  - Напоминания, будильники и таймеры — одно понятие «обязательство во
+    времени». Им владеет планировщик ядра (OpenClaw automations), доставка —
+    в любой канал по выбору пользователя: `announce` в Telegram, `webhook` в
+    station-адаптер → push на колонку через quasar. «Напомни через час в
+    телеграм» сказано колонке — доставляется в Telegram.
+  - Нативные `timer_*`/`alarm_*` станции не являются источником истины и в
+    целевой схеме не используются (`timer_stop/cancel/pause/resume`,
+    `alarm_*` требуют `id` колонки). Нативный таймер остаётся только как
+    офлайн-режим адаптера без планировщика.
+  - Реализация (08.11.2026, L3): адаптер создаёт задачу `openclaw cron add`
+    (command payload, без LLM при срабатывании) — детерминированно для
+    «таймер/засеки/напомни …» и через client tool `reminder_create` для
+    свободных формулировок; станционная доставка — webhook на
+    `/outbound?device=…&key=…` → quasar `push/text`. Секрет webhook проверяется.
 
 ## 11. Не входит в эту спеку
 

@@ -63,13 +63,8 @@ pub enum Risk {
     Dangerous,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VolumeChange {
-    Louder,
-    Quieter,
-    /// Absolute level, 1..=10 (the station scale).
-    Set(u8),
-}
+/// Volume commands are parsed by the shared deterministic intent layer.
+pub use orbita_intents::VolumeChange;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
