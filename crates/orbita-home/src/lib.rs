@@ -10,7 +10,9 @@ pub mod model;
 pub mod mqtt;
 
 pub use config::{HomeConfig, MqttConfig};
-pub use home::{Clock, Home, Publisher, SystemClock, action, subscriptions_for};
+pub use home::{Change, Clock, Home, Publisher, SystemClock, action, risk_of, subscriptions_for};
+pub use mqtt::MqttStatus;
+
 pub use model::{
     Action, ActionRequest, Capability, CapabilityView, DeviceConfig, DeviceView, Grant, HomeError,
     Published, Risk,

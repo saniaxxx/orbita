@@ -10,6 +10,7 @@ use std::{
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use tokio::sync::broadcast;
 
 use crate::config::HomeConfig;
 use crate::model::{
@@ -64,9 +65,51 @@ struct DeviceState {
     error: Option<String>,
 }
 
+/// A change reported by the MQTT transport.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Change {
+    Value {
+        device_id: String,
+        capability: String,
+        topic: String,
+        value: String,
+        received_at: DateTime<Utc>,
+    },
+    Error {
+        device_id: String,
+        topic: String,
+        error: Option<String>,
+        received_at: DateTime<Utc>,
+    },
+}
+
+impl Change {
+    pub fn device_id(&self) -> &str {
+        match self {
+            Self::Value { device_id, .. } | Self::Error { device_id, .. } => device_id,
+        }
+    }
+
+    pub fn capability(&self) -> Option<&str> {
+        match self {
+            Self::Value { capability, .. } => Some(capability),
+            Self::Error { .. } => None,
+        }
+    }
+
+    pub fn value(&self) -> Option<&str> {
+        match self {
+            Self::Value { value, .. } => Some(value),
+            Self::Error { .. } => None,
+        }
+    }
+}
+
 struct TopicMaps {
     states: HashMap<String, (String, String)>,
-    errors: HashMap<String, String>,
+    /// One physical Wiren Board device publishes one `meta/error` topic for all
+    /// of its controls, so a topic maps to every configured logical device.
+    errors: HashMap<String, Vec<String>>,
 }
 
 pub struct Home {
@@ -76,6 +119,7 @@ pub struct Home {
     states: RwLock<HashMap<String, DeviceState>>,
     rate: Mutex<HashMap<String, VecDeque<u64>>>,
     topics: TopicMaps,
+    changes: broadcast::Sender<Change>,
 }
 
 impl Home {
@@ -92,7 +136,10 @@ impl Home {
         for device in &config.devices {
             states.insert(device.id.clone(), DeviceState::default());
             if let Some(topic) = &device.meta_error_topic {
-                error_topics.insert(topic.clone(), device.id.clone());
+                error_topics
+                    .entry(topic.clone())
+                    .or_insert_with(Vec::new)
+                    .push(device.id.clone());
             }
             for capability in &device.capabilities {
                 if let Some(topic) = &capability.state_topic {
@@ -102,6 +149,7 @@ impl Home {
             }
         }
 
+        let (changes, _) = broadcast::channel(256);
         Ok(Arc::new(Self {
             config,
             publisher,
@@ -112,7 +160,15 @@ impl Home {
                 states: state_topics,
                 errors: error_topics,
             },
+            changes,
         }))
+    }
+
+    /// Subscribe to changes reported on MQTT state and `meta/error` topics.
+    /// A lagging receiver may see `RecvError::Lagged`; the cache is always
+    /// authoritative, so callers can resynchronise with `get()`.
+    pub fn subscribe(&self) -> broadcast::Receiver<Change> {
+        self.changes.subscribe()
     }
 
     pub fn config(&self) -> &HomeConfig {
@@ -126,6 +182,7 @@ impl Home {
 
     pub fn ingest(&self, topic: &str, payload: &[u8]) {
         let value = String::from_utf8_lossy(payload).into_owned();
+        let received_at = self.clock.now();
         let mut states = self.states.write().unwrap_or_else(|e| e.into_inner());
 
         if let Some((device_id, capability)) = self.topics.states.get(topic)
@@ -134,17 +191,33 @@ impl Home {
             state.values.insert(
                 capability.clone(),
                 Reported {
-                    value,
-                    received_at: self.clock.now(),
+                    value: value.clone(),
+                    received_at,
                 },
             );
+            let _ = self.changes.send(Change::Value {
+                device_id: device_id.clone(),
+                capability: capability.clone(),
+                topic: topic.to_owned(),
+                value,
+                received_at,
+            });
             return;
         }
 
-        if let Some(device_id) = self.topics.errors.get(topic)
-            && let Some(state) = states.get_mut(device_id)
-        {
-            state.error = if value.is_empty() { None } else { Some(value) };
+        if let Some(device_ids) = self.topics.errors.get(topic) {
+            let error = if value.is_empty() { None } else { Some(value) };
+            for device_id in device_ids {
+                if let Some(state) = states.get_mut(device_id) {
+                    state.error = error.clone();
+                    let _ = self.changes.send(Change::Error {
+                        device_id: device_id.clone(),
+                        topic: topic.to_owned(),
+                        error: error.clone(),
+                        received_at,
+                    });
+                }
+            }
         }
     }
 
@@ -188,9 +261,9 @@ impl Home {
                 })?;
 
         if capability.risk.requires_grant() {
-            if self.device_is_stale(device) {
+            if self.device_unavailable(device) {
                 return Err(HomeError::Denied(format!(
-                    "{} is stale; refusing a {:?} action",
+                    "{} has no usable state; refusing a {:?} action",
                     device.id, capability.risk
                 )));
             }
@@ -226,7 +299,10 @@ impl Home {
         })
     }
 
-    fn device_is_stale(&self, device: &DeviceConfig) -> bool {
+    /// Availability for safety checks: `meta/error` or no reported value.
+    /// Age is deliberately ignored: Wiren Board keeps state retained and
+    /// publishes only on change, so a 30 s quiet period is normal.
+    fn device_unavailable(&self, device: &DeviceConfig) -> bool {
         let states = self.states.read().unwrap_or_else(|e| e.into_inner());
         let Some(state) = states.get(&device.id) else {
             return true;
@@ -234,19 +310,11 @@ impl Home {
         if state.error.is_some() {
             return true;
         }
-        let now = self.clock.now();
         device
             .capabilities
             .iter()
             .filter(|cap| cap.readable)
-            .any(|cap| {
-                state.values.get(&cap.name).is_none_or(|reported| {
-                    let age = now
-                        .signed_duration_since(reported.received_at)
-                        .num_milliseconds();
-                    age < 0 || age as u64 > cap.stale_after_ms(self.config.stale_after_ms)
-                })
-            })
+            .any(|cap| !state.values.contains_key(&cap.name))
     }
 
     fn check_rate(&self, key: &str) -> Result<(), HomeError> {
@@ -278,6 +346,7 @@ impl Home {
         let now = self.clock.now();
         let mut capabilities = Vec::with_capacity(device.capabilities.len());
         let mut stale = state.error.is_some();
+        let mut any_readable_value = false;
 
         for capability in &device.capabilities {
             let reported = state.values.get(&capability.name);
@@ -288,6 +357,8 @@ impl Home {
                 age < 0 || age as u64 > capability.stale_after_ms(self.config.stale_after_ms)
             });
             stale |= capability.readable && capability_stale;
+            let available = state.error.is_none() && reported.is_some();
+            any_readable_value |= capability.readable && available;
             capabilities.push(CapabilityView {
                 name: capability.name.clone(),
                 kind: capability.kind.clone(),
@@ -297,14 +368,17 @@ impl Home {
                 value: reported.map(|reported| reported.value.clone()),
                 received_at: reported.map(|reported| reported.received_at),
                 stale: capability_stale,
+                available,
             });
         }
 
+        let has_readable = device.capabilities.iter().any(|cap| cap.readable);
         Ok(DeviceView {
             id: device.id.clone(),
             room: device.room.clone(),
             kind: device.kind.clone(),
             error: state.error.clone(),
+            available: state.error.is_none() && (any_readable_value || !has_readable),
             stale,
             capabilities,
         })
@@ -493,7 +567,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dangerous_action_is_denied_when_state_is_stale() {
+    async fn dangerous_action_is_denied_without_a_reported_state() {
         let (home, _, clock) = home(Risk::Dangerous, 60);
         let request = action("light", "on_off", Action::OnOff { on: true });
         let grant = Grant {
@@ -507,6 +581,37 @@ mod tests {
             home.apply(&request, Some(&grant)).await,
             Err(HomeError::Denied(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn old_but_reported_state_does_not_block_a_granted_action() {
+        let (home, _, clock) = home(Risk::Dangerous, 60);
+        home.ingest("/devices/wb/controls/on_off", b"0");
+        clock.advance(120_000);
+        let view = home.get("light").unwrap();
+        assert!(view.stale);
+        assert!(view.available);
+
+        let request = action("light", "on_off", Action::OnOff { on: true });
+        let grant = Grant {
+            device_id: "light".to_owned(),
+            capability: "on_off".to_owned(),
+            action_hash: request.key(),
+            expires_at: clock.now() + chrono::Duration::seconds(30),
+            nonce: "n".to_owned(),
+        };
+        assert!(home.apply(&request, Some(&grant)).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn ingest_notifies_subscribers() {
+        let (home, _, _) = home(Risk::Safe, 60);
+        let mut changes = home.subscribe();
+        home.ingest("/devices/wb/controls/on_off", b"1");
+        let change = changes.try_recv().unwrap();
+        assert_eq!(change.device_id(), "light");
+        assert_eq!(change.capability(), Some("on_off"));
+        assert_eq!(change.value(), Some("1"));
     }
 
     #[tokio::test]
@@ -529,10 +634,14 @@ mod tests {
         let view = home.get("light").unwrap();
         assert_eq!(view.capabilities[0].value.as_deref(), Some("1"));
         assert!(!view.capabilities[0].stale);
+        assert!(view.capabilities[0].available);
+        assert!(view.available);
 
         clock.advance(31_000);
         let view = home.get("light").unwrap();
         assert!(view.capabilities[0].stale);
+        assert!(view.capabilities[0].available);
+        assert!(view.available);
         assert!(view.stale);
     }
 

@@ -1,0 +1,27 @@
+[Unit]
+Description=orbita-home-mcp: home state and Wiren Board commands over MCP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbita
+Environment=HOST=0.0.0.0
+Environment=PORT=8897
+Environment=MCP_ALLOWED_HOSTS=192.168.250.103
+Environment=HOME_CONFIG=/etc/orbita/home.json
+# The legacy agent may come back with client_id=orbita-home; never share it.
+Environment=MQTT_CLIENT_ID=orbita-home-mcp
+Environment=HOME_ACK_TIMEOUT_MS=2000
+EnvironmentFile=/etc/orbita/mcp.env
+ExecStart=/opt/orbita/target/release/orbita-home-mcp
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

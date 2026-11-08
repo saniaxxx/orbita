@@ -18,7 +18,7 @@
         "детская",
         "свет детская"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_93/controls/K1/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_93/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -48,7 +48,7 @@
         "свет в гостиную",
         "свет гостинная"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_93/controls/K2/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_93/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -73,7 +73,7 @@
         "кабинет",
         "свет кабинет"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K1/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -98,7 +98,7 @@
         "свет спальня",
         "спальня"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K2/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -123,7 +123,7 @@
         "прикроватный 1",
         "свет прикроватный 1"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K3/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -148,7 +148,7 @@
         "прикроватный 2",
         "свет прикроватный 2"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K4/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -173,7 +173,7 @@
         "гардероб",
         "свет гардероб"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K5/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -198,7 +198,7 @@
         "свет фасад",
         "фасад"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_105/controls/K6/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_105/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -223,7 +223,7 @@
         "остров",
         "свет остров"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K1/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -248,7 +248,7 @@
         "кухня",
         "свет кухня"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K2/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -273,7 +273,7 @@
         "свет тамбур",
         "тамбур"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K3/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -298,7 +298,7 @@
         "прихожая",
         "свет прихожая"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K4/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -323,7 +323,7 @@
         "котельная",
         "свет котельная"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K5/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -348,7 +348,7 @@
         "кладовка",
         "свет кладовка"
       ],
-      "meta_error_topic": "/devices/wb-mr6cv3_124/controls/K6/meta/error",
+      "meta_error_topic": "/devices/wb-mr6cv3_124/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -373,7 +373,7 @@
         "коридор",
         "свет коридор"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_169/controls/K1/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_169/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -412,7 +412,7 @@
         "свет туалет",
         "туалет"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_169/controls/K2/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_169/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -451,7 +451,7 @@
         "сауна",
         "свет сауна"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_169/controls/K3/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_169/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -490,7 +490,7 @@
         "душевая",
         "свет душевая"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_158/controls/K1/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_158/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -529,7 +529,7 @@
         "свет столовая",
         "столовая"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_158/controls/K2/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_158/meta/error",
       "capabilities": [
         {
           "name": "on_off",
@@ -568,7 +568,7 @@
         "свет туалет спальня",
         "туалет спальня"
       ],
-      "meta_error_topic": "/devices/wb-mdm3_158/controls/K3/meta/error",
+      "meta_error_topic": "/devices/wb-mdm3_158/meta/error",
       "capabilities": [
         {
           "name": "on_off",

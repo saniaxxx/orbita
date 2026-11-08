@@ -50,6 +50,28 @@ impl HomeConfig {
         Ok(config)
     }
 
+    /// Environment overrides for a shared config file. The home-MCP service
+    /// must not reuse the legacy agent's `client_id`, and broker credentials
+    /// stay outside the repository.
+    pub fn apply_env_overrides(&mut self) {
+        for (key, field) in [
+            ("MQTT_CLIENT_ID", &mut self.mqtt.client_id),
+            ("MQTT_URL", &mut self.mqtt.url),
+        ] {
+            if let Ok(value) = std::env::var(key)
+                && !value.trim().is_empty()
+            {
+                *field = value;
+            }
+        }
+        if let Ok(value) = std::env::var("MQTT_USERNAME") {
+            self.mqtt.username = (!value.is_empty()).then_some(value);
+        }
+        if let Ok(value) = std::env::var("MQTT_PASSWORD") {
+            self.mqtt.password = (!value.is_empty()).then_some(value);
+        }
+    }
+
     pub fn validate(&self) -> Result<(), HomeError> {
         if self.devices.is_empty() {
             return Err(HomeError::Config("no devices configured".to_owned()));
@@ -160,5 +182,22 @@ mod tests {
         let mut config = minimal();
         config.devices.push(config.devices[0].clone());
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn stand_config_is_valid_and_uses_device_level_errors() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../deploy/home/home.json");
+        let config = HomeConfig::from_path(path).expect("deploy/home/home.json");
+        for device in &config.devices {
+            let topic = device
+                .meta_error_topic
+                .as_deref()
+                .expect("meta error topic");
+            assert!(
+                !topic.contains("/controls/"),
+                "{topic} is a control topic, not a Wiren Board meta/error topic"
+            );
+        }
     }
 }

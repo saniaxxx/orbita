@@ -154,6 +154,53 @@ impl Capability {
     pub fn stale_after_ms(&self, default_ms: u64) -> u64 {
         self.stale_after_ms.unwrap_or(default_ms)
     }
+
+    /// Does a value reported on the state topic confirm `action`?
+    ///
+    /// Wiren Board may report booleans as `1`/`0` and numbers as `42` or
+    /// `42.0`, so numbers are compared as `f64` and booleans accept the
+    /// configured payloads plus the usual textual forms.
+    pub fn matches_value(&self, action: &Action, raw: &str) -> bool {
+        let raw = raw.trim();
+        match action {
+            Action::OnOff { on } => {
+                let on_payload = self.payload_on.as_deref().unwrap_or("1");
+                let off_payload = self.payload_off.as_deref().unwrap_or("0");
+                if raw == on_payload {
+                    return *on;
+                }
+                if raw == off_payload {
+                    return !*on;
+                }
+                parse_bool(raw).is_some_and(|reported| reported == *on)
+            }
+            Action::Number { value } => raw
+                .parse::<f64>()
+                .is_ok_and(|reported| (reported - value).abs() <= 1e-6),
+            Action::Enum { value } => raw == value,
+            Action::Status => false,
+        }
+    }
+}
+
+fn parse_bool(raw: &str) -> Option<bool> {
+    if raw.eq_ignore_ascii_case("true")
+        || raw.eq_ignore_ascii_case("on")
+        || raw.eq_ignore_ascii_case("вкл")
+    {
+        return Some(true);
+    }
+    if raw.eq_ignore_ascii_case("false")
+        || raw.eq_ignore_ascii_case("off")
+        || raw.eq_ignore_ascii_case("выкл")
+    {
+        return Some(false);
+    }
+    match raw.parse::<f64>() {
+        Ok(value) if (value - 1.0).abs() <= 1e-6 => Some(true),
+        Ok(value) if value.abs() <= 1e-6 => Some(false),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -271,7 +318,11 @@ pub struct CapabilityView {
     pub writable: bool,
     pub value: Option<String>,
     pub received_at: Option<DateTime<Utc>>,
+    /// No message within the configured window. Wiren Board publishes retained
+    /// state and only on change, so this is an age signal, not availability.
     pub stale: bool,
+    /// A value has been reported and the device has no `meta/error`.
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -280,6 +331,9 @@ pub struct DeviceView {
     pub room: Option<String>,
     pub kind: String,
     pub error: Option<String>,
+    /// Whether the device is usable: no error and at least one readable value.
+    /// Based on reported data, not on the 30 s staleness window.
+    pub available: bool,
     pub stale: bool,
     pub capabilities: Vec<CapabilityView>,
 }
@@ -372,6 +426,28 @@ mod tests {
         cap.writable = false;
         assert!(cap.validate(&Action::OnOff { on: true }).is_err());
         assert!(cap.validate(&Action::Status).is_ok());
+    }
+
+    #[test]
+    fn reported_values_confirm_bool_and_number_actions() {
+        let mut cap = capability("bool");
+        cap.payload_on = Some("1".to_owned());
+        cap.payload_off = Some("0".to_owned());
+        for raw in ["1", "true", "on", "ON", "1.0"] {
+            assert!(cap.matches_value(&Action::OnOff { on: true }, raw), "{raw}");
+        }
+        for raw in ["0", "false", "off", "0.0"] {
+            assert!(
+                cap.matches_value(&Action::OnOff { on: false }, raw),
+                "{raw}"
+            );
+        }
+        assert!(!cap.matches_value(&Action::OnOff { on: true }, "0"));
+
+        let number = capability("number");
+        assert!(number.matches_value(&Action::Number { value: 42.0 }, "42"));
+        assert!(number.matches_value(&Action::Number { value: 42.0 }, "42.000"));
+        assert!(!number.matches_value(&Action::Number { value: 42.0 }, "41.9"));
     }
 
     #[test]

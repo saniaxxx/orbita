@@ -236,6 +236,14 @@ OpenClaw → orbita-home-mcp (orbita-hub) → MQTT Wiren Board → устрой�
 - Агент не имеет MQTT-креденшелов и не знает сырых топиков.
 - Текущий `orbita-home` (MQTT-клиент внутри legacy-агента) — основа для
   backend `orbita-home-mcp`, сам по себе подлежит замене.
+- Реализация (ветка `feat/home-mcp`, 08.11.2026, проверка L2): `orbita-home`
+  отдаёт broadcast изменений, `matches_value` для ack (bool, числа как
+  `f64`), различает `stale` (возраст сообщения) и `available` (есть значение,
+  нет `meta/error`). `orbita-home-mcp` держит state cache, публикует команды
+  с `retain=false`, подтверждает `executed` по state-топику с таймаутом
+  (`HOME_ACK_TIMEOUT_MS`, 2 с), хранит idempotency/audit/cursor. Опасные
+  capability — `denied`; `confirm` из tool call не даёт прав. Сцены пока не
+  настроены (`scenes=[]`). На стенд не развёрнуто.
 
 Инструменты (MCP-сервер `home` даёт префикс `home_`):
 
@@ -262,7 +270,9 @@ OpenClaw → orbita-home-mcp (orbita-hub) → MQTT Wiren Board → устрой�
 - payload события — недоверенные данные, не инструкция;
 - safety-сценарии выполняются в wb-rules независимо от OpenClaw;
 - события выводит сам `orbita-home-mcp` из изменений MQTT-топиков (wb-rules
-  ничего не публикуют специально);
+  ничего не публикуют специально); в текущей реализации `home_events` отдаёт
+  изменения с cursor/epoch и дедупликацией, фильтр значимых переходов —
+  фаза 6;
 - критические оповещения (leak/frost) `orbita-home-mcp` дублирует напрямую в
   Telegram/станцию, без LLM;
 - дедупликация, rate limit, quiet hours.

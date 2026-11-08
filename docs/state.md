@@ -45,8 +45,13 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   `tv-adb.py`; 10 MCP-инструментов у агента.
 - **TV-скилл**: «включи мультик …» → VK search/play через ADB, по умолчанию
   детская; питание/громкость через ADB.
-- **Дом**: wb-rules владеет safety/сценами; свет Wiren Board; `orbita-home`
-  читает состояние. MCP-фасада дома пока нет.
+- **Дом**: wb-rules владеет safety/сценами; свет Wiren Board. В ветке
+  `feat/home-mcp` (08.11.2026) у `orbita-home-mcp` появился реальный backend:
+  state cache из MQTT, команды в `…/on`, ack по state-топику (2 с),
+  идемпотентность, policy и audit. Проверено оффлайн (L2): 19 тестов
+  `orbita-home`, 14 тестов `orbita-home-mcp`, живой MCP handshake по HTTP.
+  На стенд не развёрнут и с реальным Wiren Board не проверялся; сцены не
+  настроены и не выдаются. В `main`/`feat/openclaw` не влито.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
   локальная модель `local/qwen3.5-9b-q4km`, context 32768.
@@ -73,15 +78,18 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   «сделай громче» — `sound_louder`. Живая станция — проверка владельца.
 - Telegram не подключён: нет токена бота и chat id. «Напомни в телеграм»
   честно отвечает «Телеграм пока не подключён, напомню здесь».
-- Нет каналов mobile/web и home-MCP на реальном wb-rules (свет у legacy есть,
-  через адаптер — нет).
+- Нет каналов mobile/web. home-MCP на реальном Wiren Board ещё не развёрнут:
+  код готов в `feat/home-mcp`, нужен перенос на CT101 и проверка владельцем
+  (L3); свет через адаптер/OpenClaw пока не ходит.
 - LLM вызывает только OpenClaw (станция и адаптер LLM не используют).
   Очередь к одному слоту llama — только между ходами самого OpenClaw:
   Telegram, фоновые `agentTurn`, heartbeat каждые 30 мин, ночной
   memory-dreaming. Legacy ходит в llama, только если quasar вернуть на него.
 - Workspace-ворота проходят с `CARGO_TARGET_DIR=/tmp/orbita-target`
   (зависание `orbita-proto` было из-за target на внешнем диске).
-- Нет `home-MCP` и событий дома через MCP.
+- Нет событий дома через MCP с фильтрацией leak/frost/door/motion/mode:
+  `home_events` отдаёт изменения MQTT с cursor/epoch, но значимые переходы и
+  доставка — фаза 6.
 - Нет Wyoming-адаптера и второго голосового интерфейса.
 - Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
@@ -201,8 +209,14 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 - `crates/orbita-contracts` — v0 контракты `InboundEvent/Reply/OutboundEvent`,
   `ReplyBlock/DeviceAction/Cancel/OutboundAck`, actions-capabilities, golden
   JSON; 6 unit + 2 golden теста.
-- `crates/orbita-home-mcp` — MCP-фасад с fake-backend: devices/state/command/
-  scenes/events/health, policy, idempotency, epoch курсора; 7 тестов.
+- `crates/orbita-home` — `Home` (кэш, validate, risk/Grant, rate limit,
+  retain=false), `mqtt::start[_with_status]`, broadcast изменений по state и
+  `meta/error`, `matches_value` для ack (bool и числа как `f64`), отдельные
+  `stale` (возраст) и `available` (есть значение, нет error); 19 тестов.
+- `crates/orbita-home-mcp` — MCP-фасад: backend на MQTT Wiren Board
+  (`HOME_MCP_SIMULATED=0`) и fake для shadow; devices/state/command/scenes/
+  scene_run/events/health, policy (dangerous deny by default), idempotency,
+  epoch курсора, audit, ack по state-топику; 14 тестов.
 - `crates/orbita-intents` — громкость, таймер (в т.ч. «засеки N минут»),
   парсер напоминаний; общий для legacy-агента и адаптера; legacy
   `fastpath`/`reminder` стали обёртками, 18/18 directive-тестов зелёные.
@@ -251,6 +265,92 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   `orbita-agent` остаётся запущенным: его уже поставленные напоминания
   доставятся, и он нужен для мгновенного отката.
 
+## 5b. home-MCP (ветка `feat/home-mcp`, 08.11.2026, развёрнут, L3)
+
+- Реальный backend подписывается на state/`meta/error` топики, публикует
+  команды только с `retain=false` и подтверждает `executed` по state-топику с
+  таймаутом `HOME_ACK_TIMEOUT_MS` (по умолчанию 2000 мс). Таймаут — `failed`
+  с фактическим состоянием.
+- `stale` — возраст последнего сообщения (WB публикует retained и только по
+  изменению), `available` — есть значение и нет `meta/error`. Для опасных
+  действий проверяется `available`, а не 30-секундный возраст.
+- `meta/error` в `deploy/home/home.json` переведён на уровень устройства
+  (`/devices/wb-…/meta/error`): один топик обслуживает все его контролы.
+- Опасные capability — `denied` до появления out-of-band approval;
+  `confirm="approved"` из tool call игнорируется. Сцен нет: `scenes=[]`,
+  `scene_run` → `denied`.
+- `events` отдаёт изменения MQTT с cursor/epoch и дедупликацией; значимые
+  переходы (leak/frost/door/motion/mode) — фаза 6.
+- Оффлайн-проверка (L2): `cargo test -p orbita-home -p orbita-home-mcp`
+  (19+14), `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace`, MCP `initialize`/`tools/list`/`health` по HTTP.
+  В реальном режиме без брокера health — `degraded`,
+  `broker=disconnected`, а `command` возвращает `failed` по ack-таймауту
+  (2 с) с фактическим состоянием.
+- **Развёрнуто на стенде 08.11.2026 (L3, без станции).** `orbita-home-mcp`
+  на `orbita-hub` `:8897` (юнит из `deploy/systemd`, бинарник собран в
+  `/opt/orbita-feat`), `mqtt connected`, `health`: 20 устройств, все
+  `available`. Стендовый `/etc/orbita/home.json` **не заменён**: в нём
+  `meta/error` на уровне контрола (`…/controls/K1/meta/error`, стандарт WB);
+  переход на уровень устройства из `deploy/home/home.json` не проверен на
+  живом брокере (сейчас ни одного `meta/error` нет), бэкап —
+  `/root/backup-home-mcp-20261108/home.json.prev`.
+- OpenClaw: `mcp.servers.home` (`http://192.168.250.103:8897/mcp`, Bearer как у
+  tv/search), hot reload без рестарта; бэкап
+  `openclaw.json.bak-home-mcp-20261108`. Первая попытка: bundle-mcp отказался
+  запускать сервер — schemars отдавал для `command.value` схему `true`, zod
+  OpenClaw её не принимает; исправлено явной схемой
+  (`boolean|number|string`) и тестом на объектные схемы свойств.
+- Проверено: MCP напрямую — кладовка `on`→`off`, оба `executed` с ack по
+  state-топику, оба перехода в `events`; через OpenClaw — «где горит свет»
+  ответ по реальному состоянию (остров, столовая 63%), «включи/выключи свет
+  в кладовке» — по 3,7 с (два tool call: поиск устройства + команда),
+  `executed`. Свет возвращён в исходное состояние. Голосом со станции — ещё
+  нет (L3 через Gateway).
+- Команды развёртывания (выполнены):
+
+  ```sh
+  # CT101, дерево с этим коммитом (например /opt/orbita-feat).
+  mkdir -p /root/backup-home-mcp-20261108
+  cp -p /etc/orbita/home.json /root/backup-home-mcp-20261108/home.json.prev
+  cp -p /opt/orbita/target/release/orbita-home-mcp \
+    /root/backup-home-mcp-20261108/orbita-home-mcp.prev 2>/dev/null || true
+
+  CARGO_TARGET_DIR=/opt/orbita/target nice -n 19 cargo build --release -j 2 \
+    -p orbita-home-mcp
+  install -m 0644 deploy/systemd/orbita-home-mcp.service \
+    /etc/systemd/system/orbita-home-mcp.service
+  install -m 0600 deploy/home/home.json /etc/orbita/home.json
+  systemctl daemon-reload
+  systemctl enable --now orbita-home-mcp
+  systemctl status orbita-home-mcp --no-pager
+  journalctl -u orbita-home-mcp -n 50 --no-pager
+  curl -s http://127.0.0.1:8897/health
+  ```
+
+  `MCP_TOKEN` уже в `/etc/orbita/mcp.env` (тот же, что у tv/search); юнит
+  задаёт `HOST=0.0.0.0`, `MCP_ALLOWED_HOSTS=192.168.250.103`,
+  `MQTT_CLIENT_ID=orbita-home-mcp` (legacy client id не переиспользуется).
+  Диагностика backend без команд светом:
+
+  ```sh
+  MQTT_CLIENT_ID=orbita-home-diag /opt/orbita/target/release/orbita-home \
+    --config /etc/orbita/home.json list
+  ```
+
+  В OpenClaw (CT102) добавить `mcp.servers.home` по образцу tv/search:
+  `url=http://192.168.250.103:8897/mcp`, тот же
+  `Authorization: Bearer $MCP_TOKEN`; перед правкой — бэкап
+  `openclaw.json`, затем `systemctl restart openclaw`. `openclaw mcp probe`
+  требует остановленный gateway, поэтому проверять реальным ходом агента.
+  Команду светом выполнять осознанно (в доме дети) и только с владельцем.
+- Откат: `systemctl disable --now orbita-home-mcp`; вернуть
+  `/etc/orbita/home.json` и бинарник из
+  `/root/backup-home-mcp-20261108/`; на CT102 вернуть бэкап `openclaw.json`
+  и перезапустить OpenClaw. Legacy-агент остаётся остановленным по решению
+  владельца; `pct exec 101 -- systemctl enable --now orbita-agent
+  orbita-warmup` — отдельное решение.
+
 ## 6. Откат POC (важно)
 
 Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`feat/openclaw`) и
@@ -294,7 +394,8 @@ Legacy-агент на `orbita-hub` сейчас собран из `f836d93` (`f
 1. Фаза 0: контракты, identity, baseline, ADR LLM/adapter.
 2. LLM serving + общие STT/TTS-шлюзы.
 3. POC OpenClaw/Hermes с go/no-go по device-actions и streaming.
-4. home-MCP + команды/ack в wb-rules.
+4. home-MCP: развернуть на CT101, проверить команды/ack реальным светом
+   (wb-rules не меняются, D-18).
 5. Station adapter на `orbita-station-sim`.
 6. Streaming TTS — отдельный gate.
 7. События/outbound, затем Wyoming.
