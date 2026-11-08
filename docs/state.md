@@ -42,19 +42,19 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
   читает состояние. MCP-фасада дома пока нет.
 - **Поиск**: `orbita-mcp-search` + SearXNG.
 - **OpenClaw**: установлен в `orbita-brain`; gateway active на loopback,
-  локальная модель `local/qwen3.5-9b-q4km`, тестовый agent turn прошёл.
-  MCP search/TV подключены через SSH-туннель `18899/18898`; probe видит
-  1 и 9 инструментов.
-  **D-21 выполнено частично:** глобальная GBNF убрана из `llama.service`,
-  legacy-агент шлёт `grammar` в запросе. Слот по-прежнему `-np 1`, поэтому
-  OpenClaw и голос делят очередь; POC запускать при простое станции.
-  Tool call через `openclaw agent` пока не сработал (модель/approval), сам MCP
-  доступен.
+  локальная модель `local/qwen3.5-9b-q4km` с context 65536.
+  MCP search/TV подключены через SSH-туннель `18899/18898`; `mcp probe` видит
+  1 + 9 инструментов, `tools.toolSearch=false` отдаёт схемы напрямую.
+  Проверены реальные tool calls: `search__search` вернул живые результаты,
+  `tv__state` — состояние TV в детской. Уровень — стенд без станции (L3).
+  **D-21 частично:** глобальная GBNF убрана, legacy-агент шлёт `grammar`
+  per-request; llama `-c 65536`, KV q4, но по-прежнему `-np 1`. OpenClaw и
+  голос делят слот; POC запускать при простое станции. Свободно ~178 МиБ VRAM.
 
 ## 4. Что ещё не сделано
 
-- OpenClaw установлен, MCP search/TV подключены; нет каналов, station adapter и
-  рабочего tool-call через агентскую модель. Один слот llama.
+- OpenClaw умеет search/TV tools, но нет каналов, station adapter и home-MCP.
+  Один слот llama; OpenClaw и голос делят очередь.
 - Полный workspace clippy/test не завершён из-за зависания сборки `orbita-proto`
   на этой машине; новые крейты проверены отдельно.
 - Нет `home-MCP` и событий дома через MCP.
