@@ -19,13 +19,23 @@ mobile и web — интерфейсы к одному ядру. Ядро — Op
 | Где | Адрес | Что |
 |---|---|---|
 | pve3 | `192.168.250.221` | Proxmox VE |
-| CT 100 `orbita-ai` | `192.168.250.102` | GPU/AI: llama.cpp, GigaAM, Vosk TTS |
+| CT 100 `orbita-ai` | `192.168.250.102` (статический) | GPU/AI: llama.cpp, GigaAM, Vosk TTS |
 | CT 101 `orbita-hub` | `192.168.250.103` | interfaces/integrations: quasar, mcp-search, orbita-tv, orbita-home-mcp, dashboard, https-proxy, SearXNG; orbita-agent остановлен |
 | CT 102 `orbita-brain` | `192.168.250.105` | ядро: OpenClaw 2026.11.1, Node 24, gateway `127.0.0.1:18789` |
 | Станция | `192.168.250.115` | домены Яндекса в `/etc/hosts` → `.103` |
 | Wiren Board | `192.168.250.110` | MQTT, wb-rules |
 | TCL TV | `192.168.250.109` | Remote v2 |
 | Sber TV | `192.168.250.111` | SaluteTV, ADB 5555 |
+
+**Стенд после перезагрузки хоста 13.11.2026.** pve3 перезагрузился в 18:08;
+CT 100 был на DHCP и получил `.108`, а на `.102` смотрят quasar (precheck TTS),
+OpenClaw (llama `:8090`), `orbita-processor` и `secrets.env` — станция не
+работала, quasar ушёл в цикл рестартов. Адрес `CT 100` переведён в статический
+`.102` (`pct set 100 -net0 …` + `/etc/network/interfaces`), контейнер не
+перезапускали; бэкап — `/root/backup-net-20261113/` на pve3 и в CT 100.
+Проверено после правки (13.11, L3): quasar, TTS `:9170`, ASR `:8006` (фраза
+распознана, `end_of_utt` сработал), адаптер `/process` — 4 хода, стриминг
+0,85 с, `shouldListen` на сказке с вопросом, TV/свет отвечают.
 
 ## 3. Что работает
 
