@@ -100,7 +100,6 @@ OpenClaw (llama `:8090`), `orbita-processor` и `secrets.env` — станция
   `home_events` отдаёт изменения MQTT с cursor/epoch, но значимые переходы и
   доставка — фаза 6.
 - Нет Wyoming-адаптера и второго голосового интерфейса.
-- Нет streaming-ответа OpenClaw → пофразового TTS; quasar пока один поток.
 - `orbita-agent` смешивает ядро и station-адаптер; это legacy.
 
 ## 4a. Задержка голоса (замеры 08.11.2026)
