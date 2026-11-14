@@ -1,3 +1,5 @@
+18:// orbita: PROCESSOR_STREAMING_FINAL=false restores the earlier two-response streaming, which hung the station on 14.11; full rollback is removing 20-stream.conf.
+19:const STREAMING_FINAL_RESPONSE = process.env.PROCESSOR_STREAMING_FINAL !== 'false'
 --- a/src/routers/uniproxy/input-handler.ts
 +++ b/src/routers/uniproxy/input-handler.ts
 @@ -65,6 +65,8 @@
@@ -21,7 +23,7 @@
  
  export class InputHandler {
    private readonly logger = getLogger()
-@@ -157,6 +164,25 @@
+@@ -157,6 +164,26 @@
      return null
    }
  
@@ -31,8 +33,9 @@
 +    while (Date.now() < deadline) {
 +      const part = await this.getPartialResponse()
 +      if (part) {
-+        // A closing question keeps the session for the answer.
-+        if (part.finished && !part.shouldListen) {
++        // The station takes ShouldListen from the one response and opens a new
++        // dialog for the answer, exactly as in the non-streamed path.
++        if (part.finished) {
 +          this.closeSession()
 +        }
 +        return part
@@ -47,7 +50,7 @@
    async openSession (parentSpan?: Span): Promise<void> {
      if (this.session) {
        this.logger.debug('Session already opened')
-@@ -382,6 +408,25 @@
+@@ -382,6 +409,25 @@
          text: partialResponse.text
        }
      }
@@ -79,7 +82,7 @@
  import { AlarmMetadata, InputHandler, InputMetadata, InputResult, TextInput, TimerMetadata } from './input-handler'
  import { VoiceInputHandler } from './voice-input-handler'
  
-+// orbita: PROCESSOR_STREAMING_FINAL=false restores the single-response streaming.
++// orbita: PROCESSOR_STREAMING_FINAL=false restores the earlier two-response streaming, which hung the station on 14.11; full rollback is removing 20-stream.conf.
 +const STREAMING_FINAL_RESPONSE = process.env.PROCESSOR_STREAMING_FINAL !== 'false'
 +
  type TServerMessage = proto.NAlice.NAliceApi.ITServerMessage
@@ -103,39 +106,49 @@
              Suggest: {
                Items: []
              }
-@@ -959,8 +962,10 @@
+@@ -957,10 +960,16 @@
+ 
+   private async sendInputResult (result: InputResult, metadata: InputMetadata, requestId: string,
      referenceMessageId: string, sequenceNumber: number): Promise<void> {
++    let rawDirectives: RawDirective[] = []
      try {
-       const rawDirectives = await this.processWrappedDirectives(result.directives, metadata)
-+      // orbita: a streamed reply is announced as IsStreaming; the final
-+      // response after the last part carries ShouldListen.
-       await this.sendAliceResponse(result.text, rawDirectives, result.shouldListen,
+-      const rawDirectives = await this.processWrappedDirectives(result.directives, metadata)
+-      await this.sendAliceResponse(result.text, rawDirectives, result.shouldListen,
 -        requestId, referenceMessageId, sequenceNumber)
-+        requestId, referenceMessageId, sequenceNumber, result.streaming === true && STREAMING_FINAL_RESPONSE)
++      rawDirectives = await this.processWrappedDirectives(result.directives, metadata)
++      // orbita: a streamed reply sends its single AliceResponse later, when the
++      // whole text is known (sendStreamingReply): the station reads
++      // ShouldListen from that response, as in the non-streamed path.
++      if (!(result.streaming === true && STREAMING_FINAL_RESPONSE)) {
++        await this.sendAliceResponse(result.text, rawDirectives, result.shouldListen,
++          requestId, referenceMessageId, sequenceNumber)
++      }
      } catch (error) {
        this.logger.error('Failed to send AliceResponse in sendInputResult: ', error)
        this.closeConnection()
-@@ -991,6 +996,27 @@
+@@ -991,6 +1000,29 @@
            this.closeConnection()
          }
        } else {
 +        if (result.streaming) {
-+          const shouldListen = await this.sendStreamingTTS(result.text, referenceMessageId, span)
 +          if (STREAMING_FINAL_RESPONSE) {
-+            // The station takes ShouldListen from the final (IsStreaming=false)
-+            // response; the first one went out before the end of the reply.
-+            await this.sendAliceResponse(null, [], shouldListen, requestId, referenceMessageId, sequenceNumber, false)
-+            this.logger.info(`Streamed reply finished, shouldListen=${shouldListen}`)
++            await this.sendStreamingReply({
++              directives: rawDirectives,
++              firstText: result.text,
++              referenceMessageId,
++              requestId,
++              sequenceNumber,
++              span
++            })
++          } else {
++            const shouldListen = await this.sendStreamingTTS(result.text, referenceMessageId, span)
 +            if (shouldListen) {
++              // The first AliceResponse went out before the reply was known to
++              // end with a question; tell the station to listen now.
++              await this.sendAliceResponse(null, [], true, requestId, referenceMessageId, sequenceNumber)
 +              result.dialogFinished = false
 +              result.shouldListen = true
 +            }
-+          } else if (shouldListen) {
-+            // The first AliceResponse went out before the reply was known to
-+            // end with a question; tell the station to listen now.
-+            await this.sendAliceResponse(null, [], true, requestId, referenceMessageId, sequenceNumber)
-+            result.dialogFinished = false
-+            result.shouldListen = true
 +          }
 +          span?.end()
 +          return
@@ -143,13 +156,104 @@
          // The station plays one TTS stream per AliceResponse: it stops after
          // the first StreamControl.Close, so several phrase streams only voice
          // the first phrase. Keep one stream until multi-stream playback is
-@@ -1080,6 +1106,83 @@
+@@ -1080,6 +1112,174 @@
      await this.sendRawData(Buffer.concat([Buffer.from('AAPI', 'ascii'), encoded]), true)
    }
  
-+  // orbita: streaming. Each part gets its own TtsSpeak stream; only the last
-+  // one is closed. The station plays every stream in order and stops at the
-+  // first StreamControl.Close (verified on the device 04.11.2026).
++  // orbita: streaming. The station gets one AliceResponse, as in a non-streamed
++  // reply, but only once the whole text is known: ShouldListen is read from it,
++  // and a second response after the audio left the station waiting forever
++  // (live station, 14.11.2026). Parts are synthesized as they arrive, so the
++  // first audio is ready by then; each part is its own TtsSpeak stream and only
++  // the last one is closed (verified on the device 04.11.2026).
++  private async sendStreamingReply (request: {
++    directives: RawDirective[]
++    firstText: string
++    referenceMessageId: string
++    requestId: string
++    sequenceNumber: number
++    span?: Span
++  }): Promise<void> {
++    // Synthesised in parallel with the waiting for the next part: the GPU
++    // handles several phrases at once, and serialising them cost 1 s per part.
++    const parts: Array<Promise<Buffer | null>> = []
++    let fullText = request.firstText.trim()
++    let shouldListen = false
++    let timedOut = false
++    const synthesize = (text: string): void => {
++      const started = Date.now()
++      const index = parts.length + 1
++      parts.push(this.parameters.tts.synthesize({
++        parentSpan: request.span ?? this.inputSpan ?? this.dialogSpan,
++        text
++      }).then(({ voiceOutput }) => {
++        this.logger.info(`Streamed part ${index} (${Date.now() - started} ms): ${voiceOutput.length} bytes ${JSON.stringify(text)}`)
++        return voiceOutput
++      }).catch(error => {
++        this.logger.error(`Failed to synthesize streamed part ${JSON.stringify(text)}: `, error)
++        return null
++      }))
++    }
++    if (fullText !== '') {
++      synthesize(fullText)
++    }
++    for (;;) {
++      const part = await this.inputHandler.nextStreamingPart()
++      if (part === null) {
++        this.logger.warn('Streamed reply timed out waiting for the next part')
++        timedOut = true
++        break
++      }
++      if (part.directives.length > 0) {
++        this.logger.warn(`Ignoring directives in a later streamed part: ${JSON.stringify(part.directives)}`)
++      }
++      const text = part.text.trim()
++      if (text !== '') {
++        fullText = fullText === '' ? text : `${fullText} ${text}`
++        synthesize(text)
++      }
++      if (part.finished) {
++        shouldListen = part.shouldListen
++        break
++      }
++    }
++    try {
++      await this.sendAliceResponse(fullText !== '' ? fullText : null, request.directives, shouldListen,
++        request.requestId, request.referenceMessageId, request.sequenceNumber)
++    } catch (error) {
++      this.logger.error('Failed to send AliceResponse in sendStreamingReply: ', error)
++      this.closeConnection()
++      return
++    }
++    this.logger.info(`Streamed reply sent: ${parts.length} part(s), shouldListen=${shouldListen}${timedOut ? ', timed out' : ''}`)
++    if (parts.length === 0) {
++      await this.sendTTS(Buffer.from([]), request.referenceMessageId)
++      return
++    }
++    // Each stream goes out as soon as its part is synthesised: the station
++    // plays part 1 while part 2 is still being made on the GPU.
++    let lastStreamId: null | number = null
++    for (const pending of parts) {
++      const buffer = await pending
++      if (buffer !== null) {
++        lastStreamId = await this.openTTSStream(buffer, request.referenceMessageId)
++      }
++    }
++    if (lastStreamId === null) {
++      await this.sendTTS(Buffer.from([]), request.referenceMessageId)
++      return
++    }
++    await this.sendServerMessage({
++      StreamControl: {
++        Close: {},
++        MessageId: randomUUID(),
++        StreamId: lastStreamId
++      },
++      Timings: this.getTimings()
++    })
++  }
++
++  // The earlier streaming path, kept as a rollback (PROCESSOR_STREAMING_FINAL=false).
 +  private async sendStreamingTTS (firstText: string, referenceMessageId: string, span?: Span): Promise<boolean> {
 +    let lastStreamId: null | number = null
 +    let shouldListen = false
