@@ -1,5 +1,3 @@
-18:// orbita: PROCESSOR_STREAMING_FINAL=false restores the earlier two-response streaming, which hung the station on 14.11; full rollback is removing 20-stream.conf.
-19:const STREAMING_FINAL_RESPONSE = process.env.PROCESSOR_STREAMING_FINAL !== 'false'
 --- a/src/routers/uniproxy/input-handler.ts
 +++ b/src/routers/uniproxy/input-handler.ts
 @@ -65,6 +65,8 @@
@@ -156,7 +154,7 @@
          // The station plays one TTS stream per AliceResponse: it stops after
          // the first StreamControl.Close, so several phrase streams only voice
          // the first phrase. Keep one stream until multi-stream playback is
-@@ -1080,6 +1112,174 @@
+@@ -1080,6 +1112,186 @@
      await this.sendRawData(Buffer.concat([Buffer.from('AAPI', 'ascii'), encoded]), true)
    }
  
@@ -180,6 +178,10 @@
 +    let fullText = request.firstText.trim()
 +    let shouldListen = false
 +    let timedOut = false
++    // The station may hang up or start a new dialog mid-reply (18.11.2026).
++    // Then there is nobody to send the rest to: stop instead of throwing.
++    const dialogId = this.dialogId
++    const alive = (): boolean => this.webSocket.readyState === WebSocket.OPEN && this.dialogId === dialogId
 +    const synthesize = (text: string): void => {
 +      const started = Date.now()
 +      const index = parts.length + 1
@@ -217,6 +219,10 @@
 +        break
 +      }
 +    }
++    if (!alive()) {
++      this.logger.info('Station closed the dialog, the streamed reply is dropped')
++      return
++    }
 +    try {
 +      await this.sendAliceResponse(fullText !== '' ? fullText : null, request.directives, shouldListen,
 +        request.requestId, request.referenceMessageId, request.sequenceNumber)
@@ -235,6 +241,10 @@
 +    let lastStreamId: null | number = null
 +    for (const pending of parts) {
 +      const buffer = await pending
++      if (!alive()) {
++        this.logger.info('Station closed the dialog, the rest of the streamed reply is dropped')
++        return
++      }
 +      if (buffer !== null) {
 +        lastStreamId = await this.openTTSStream(buffer, request.referenceMessageId)
 +      }

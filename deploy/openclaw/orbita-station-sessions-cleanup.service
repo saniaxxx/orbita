@@ -1,9 +1,15 @@
 [Unit]
 Description=orbita: delete old OpenClaw station sessions
+# The timer is persistent, so it fires right after a reboot; wait for the
+# gateway that the CLI talks to (18.11.2026: the run raced the gateway).
+After=openclaw.service
+Wants=openclaw.service
 
 [Service]
 Type=oneshot
 User=openclaw
 Environment=KEEP_DAYS=7
 Environment=PATH=/home/openclaw/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# The script waits up to 180 s for the gateway itself.
+TimeoutStartSec=300
 ExecStart=/usr/bin/python3 /usr/local/lib/orbita/station-sessions-cleanup.py
